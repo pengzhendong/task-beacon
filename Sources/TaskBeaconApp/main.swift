@@ -33,7 +33,7 @@ struct TaskBeaconMenuApp: App {
     }
 
     private var panelHeight: CGFloat {
-        min(520, max(230, 140 + CGFloat(model.tasks.count) * 90))
+        min(500, max(205, 120 + CGFloat(model.tasks.count) * 90))
     }
 }
 
@@ -286,24 +286,14 @@ struct BeaconMenu: View {
     }
 
     private var header: some View {
-        HStack(spacing: 11) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .interpolation(.high)
-                .frame(width: 32, height: 32)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("TaskBeacon")
-                    .font(.headline)
-                HStack(spacing: 5) {
-                    Circle().fill(brandGreen).frame(width: 6, height: 6)
-                    Text("\(model.activeCount) 个进行中")
-                    if model.attentionCount > 0 {
-                        Text("· \(model.attentionCount) 个需处理")
-                            .foregroundStyle(.orange)
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        HStack(spacing: 6) {
+            Circle().fill(brandGreen).frame(width: 7, height: 7)
+            Text("\(model.activeCount) 个进行中")
+                .font(.subheadline.weight(.medium))
+            if model.attentionCount > 0 {
+                Text("· \(model.attentionCount) 个需处理")
+                    .font(.subheadline)
+                    .foregroundStyle(.orange)
             }
             Spacer()
             Button { Task { await model.refresh() } } label: {
@@ -315,7 +305,7 @@ struct BeaconMenu: View {
             .help("立即刷新")
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        .padding(.vertical, 9)
         .overlay(alignment: .bottom) { Divider() }
     }
 
@@ -344,7 +334,7 @@ struct BeaconMenu: View {
 
     private var groups: [(key: String, value: [TaskRecord])] {
         Dictionary(grouping: model.tasks) { task in
-            [task.project, task.hostID].compactMap { $0 }.joined(separator: " · ")
+            task.project ?? "未分组"
         }.map { (key: $0.key.isEmpty ? "未分组" : $0.key, value: $0.value) }
             .sorted { $0.key < $1.key }
     }
