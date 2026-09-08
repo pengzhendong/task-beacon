@@ -3,6 +3,9 @@ import TaskBeaconCore
 
 @main
 struct TaskBeaconMCP {
+    private static let latestProtocolVersion = "2025-11-25"
+    private static let supportedProtocolVersions = [latestProtocolVersion, "2025-06-18"]
+
     static func main() {
         while let line = readLine() {
             guard let data = line.data(using: .utf8),
@@ -24,8 +27,12 @@ struct TaskBeaconMCP {
         switch method {
         case "notifications/initialized": return nil
         case "initialize":
+            let requestedVersion = (request["params"] as? [String: Any])?["protocolVersion"] as? String
+            let negotiatedVersion = requestedVersion.flatMap {
+                supportedProtocolVersions.contains($0) ? $0 : nil
+            } ?? latestProtocolVersion
             return success(id: id, result: [
-                "protocolVersion": "2025-06-18",
+                "protocolVersion": negotiatedVersion,
                 "capabilities": ["tools": [:]],
                 "serverInfo": ["name": "taskbeacon-mcp", "version": "0.1.0"]
             ])

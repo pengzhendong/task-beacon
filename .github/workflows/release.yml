@@ -24,7 +24,7 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -59,8 +59,21 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           VERSION="$version" BUILD_NUMBER="$GITHUB_RUN_NUMBER" ./scripts/package-app.sh
           codesign --verify --deep --strict dist/TaskBeacon.app
+          test -s dist/TaskBeacon.app/Contents/Resources/TaskBeacon.icns
+          test -s dist/TaskBeacon.app/Contents/Resources/TaskBeaconStatus.png
+          codesign --verify --strict dist/TaskBeacon.app/Contents/Helpers/taskbeacond
           codesign --verify --strict dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon
           codesign --verify --strict dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon-mcp
+          runtime_dir="$(mktemp -d "$RUNNER_TEMP/taskbeacon-runtime.XXXXXX")"
+          socket_path="$runtime_dir/taskbeacon.sock"
+          cli="dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon"
+          cleanup() {
+            TASKBEACON_DATA_DIR="$runtime_dir" TASKBEACON_SOCKET="$socket_path" "$cli" daemon stop >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          TASKBEACON_DATA_DIR="$runtime_dir" TASKBEACON_SOCKET="$socket_path" "$cli" daemon start
+          TASKBEACON_DATA_DIR="$runtime_dir" TASKBEACON_SOCKET="$socket_path" "$cli" daemon status
+          TASKBEACON_DATA_DIR="$runtime_dir" TASKBEACON_SOCKET="$socket_path" "$cli" daemon stop
           mkdir -p release
 
       - name: Notarize app

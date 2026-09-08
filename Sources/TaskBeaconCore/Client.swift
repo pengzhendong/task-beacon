@@ -14,7 +14,12 @@ public struct TaskBeaconClient: Sendable {
         let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
         guard descriptor >= 0 else { throw TaskBeaconError.connection("cannot create socket") }
         defer { close(descriptor) }
-        var interval = timeval(tv_sec: Int(max(1, timeout)), tv_usec: 0)
+        let boundedTimeout = max(0.001, timeout)
+        let seconds = floor(boundedTimeout)
+        var interval = timeval(
+            tv_sec: Int(seconds),
+            tv_usec: Int32((boundedTimeout - seconds) * 1_000_000)
+        )
         _ = setsockopt(descriptor, SOL_SOCKET, SO_RCVTIMEO, &interval, socklen_t(MemoryLayout<timeval>.size))
         _ = setsockopt(descriptor, SOL_SOCKET, SO_SNDTIMEO, &interval, socklen_t(MemoryLayout<timeval>.size))
         var suppressBrokenPipe: Int32 = 1

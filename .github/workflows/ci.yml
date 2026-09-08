@@ -13,7 +13,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build
         run: swift build
       - name: Test
@@ -34,3 +34,23 @@ jobs:
           dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon --help >/dev/null
           codesign --verify --strict dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon
           codesign --verify --strict dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon-mcp
+      - name: Test packaged CLI service lifecycle
+        run: |
+          runtime_dir="$(mktemp -d "$RUNNER_TEMP/taskbeacon-runtime.XXXXXX")"
+          socket_path="$runtime_dir/taskbeacon.sock"
+          cli="dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon"
+          cleanup() {
+            TASKBEACON_DATA_DIR="$runtime_dir" TASKBEACON_SOCKET="$socket_path" "$cli" daemon stop >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          TASKBEACON_DATA_DIR="$runtime_dir" TASKBEACON_SOCKET="$socket_path" "$cli" daemon start
+          TASKBEACON_DATA_DIR="$runtime_dir" TASKBEACON_SOCKET="$socket_path" "$cli" daemon status
+          TASKBEACON_DATA_DIR="$runtime_dir" TASKBEACON_SOCKET="$socket_path" "$cli" daemon stop
+          for _ in {1..30}; do
+            if ! TASKBEACON_DATA_DIR="$runtime_dir" TASKBEACON_SOCKET="$socket_path" "$cli" daemon status >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 0.1
+          done
+          echo "TaskBeacon service did not stop" >&2
+          exit 1

@@ -122,9 +122,18 @@ struct TaskBeaconCLI {
                 return
             }
             let executable = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
-            let daemonURL = executable.deletingLastPathComponent().appendingPathComponent("taskbeacond")
-            guard FileManager.default.isExecutableFile(atPath: daemonURL.path) else {
-                throw TaskBeaconError.notFound("taskbeacond not found beside taskbeacon")
+            let executableDirectory = executable.deletingLastPathComponent()
+            let candidates = [
+                executableDirectory.appendingPathComponent("taskbeacond"),
+                executableDirectory
+                    .deletingLastPathComponent()
+                    .deletingLastPathComponent()
+                    .appendingPathComponent("Helpers/taskbeacond")
+            ]
+            guard let daemonURL = candidates.first(where: {
+                FileManager.default.isExecutableFile(atPath: $0.path)
+            }) else {
+                throw TaskBeaconError.notFound("taskbeacond was not found beside the CLI or in the app bundle")
             }
             try FileManager.default.createDirectory(at: RuntimePaths.dataDirectory, withIntermediateDirectories: true)
             let logURL = RuntimePaths.dataDirectory.appendingPathComponent("taskbeacond.log")
@@ -147,13 +156,9 @@ struct TaskBeaconCLI {
             }
             throw TaskBeaconError.connection("service did not become ready; see \(logURL.path)")
         case "stop":
-            let pidURL = RuntimePaths.dataDirectory.appendingPathComponent("taskbeacond.pid")
-            guard let text = try? String(contentsOf: pidURL, encoding: .utf8),
-                  let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-                throw TaskBeaconError.notFound("daemon pid file not found")
-            }
-            guard kill(pid, SIGTERM) == 0 else {
-                throw TaskBeaconError.connection("failed to stop pid \(pid)")
+            let response = try client.send(WireRequest(action: "service.shutdown"))
+            guard response.ok else {
+                throw TaskBeaconError.connection(response.message ?? "service refused to stop")
             }
             print("TaskBeacon service stopped")
         default:

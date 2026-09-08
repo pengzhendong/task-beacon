@@ -105,15 +105,17 @@ struct TaskBeaconDaemon {
                 if data.last == 0x0A { break }
             }
             let request = try JSONCoding.decoder().decode(WireRequest.self, from: data)
-            if request.action == "service.prepare-update" {
+            if request.action == "service.prepare-update" || request.action == "service.shutdown" {
                 var peerUID: uid_t = 0
                 var peerGID: gid_t = 0
                 guard getpeereid(client, &peerUID, &peerGID) == 0, peerUID == getuid() else {
-                    throw TaskBeaconError.invalid("only the current user may restart this service")
+                    throw TaskBeaconError.invalid("only the current user may stop this service")
                 }
-                let executable = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.path
-                guard request.expectedExecutablePath == executable else {
-                    throw TaskBeaconError.invalid("the service belongs to a different TaskBeacon installation")
+                if request.action == "service.prepare-update" {
+                    let executable = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.path
+                    guard request.expectedExecutablePath == executable else {
+                        throw TaskBeaconError.invalid("the service belongs to a different TaskBeacon installation")
+                    }
                 }
                 try await store.prepareForUpdate()
                 collectorProcesses.stopForUpdate()
@@ -123,7 +125,8 @@ struct TaskBeaconDaemon {
                 if (try? String(contentsOf: pidFile, encoding: .utf8)) == "\(getpid())\n" {
                     try? FileManager.default.removeItem(at: pidFile)
                 }
-                if let encoded = try? JSONCoding.encoder().encode(WireResponse(ok: true, message: "ready for update")) {
+                let message = request.action == "service.prepare-update" ? "ready for update" : "service stopped"
+                if let encoded = try? JSONCoding.encoder().encode(WireResponse(ok: true, message: message)) {
                     try? writeAll(encoded, to: client)
                 }
                 close(client)
