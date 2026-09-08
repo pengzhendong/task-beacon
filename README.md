@@ -39,10 +39,23 @@ TaskBeacon 是一个本地优先的 macOS AI 任务进度中心。AI 在开始�
 
 ## 安装
 
+### 从 Release 安装
+
 从 [Releases](https://github.com/pengzhendong/task-beacon/releases) 下载最新的 `TaskBeacon-v*.zip`，解压后将 `TaskBeacon.app` 放入 Applications 并打开。目前预构建版本面向 Apple Silicon Mac（M 系列），Intel Mac 可自行从源码构建。首次安装完成后，后续版本可在应用内完成：菜单栏选择 **检查更新…**，或等待每天一次的后台检查；下载后选择安装并重新启动，由更新器完成替换和重启，无需重新拖动应用。
 
 > [!NOTE]
 > 在尚未配置 Apple Developer ID 的早期 Release 中，macOS 可能提示应用来自未识别开发者。自动更新包仍会使用项目独立的 Ed25519 密钥验证；正式分发建议同时配置 Developer ID 签名和公证。
+
+### 从源码运行
+
+```bash
+git clone https://github.com/pengzhendong/task-beacon.git
+cd task-beacon
+make app
+open dist/TaskBeacon.app
+```
+
+需要 macOS 13+ 和 Swift 6；本地生成的应用使用临时签名，不需要 Apple Developer 账号。
 
 ## 快速开始
 
@@ -75,6 +88,12 @@ taskbeacon=/Applications/TaskBeacon.app/Contents/Resources/bin/taskbeacon
 ```
 
 也可以将 CLI 链接到现有的 `PATH` 目录，之后直接使用 `taskbeacon`。
+
+查看完整命令入口：
+
+```bash
+"$taskbeacon" --help
+```
 
 ## MCP 接入
 

@@ -318,33 +318,63 @@ struct TaskRow: View {
     let collector: CollectorRecord?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Image(systemName: icon).foregroundStyle(color)
                 Text(task.title).fontWeight(.medium).lineLimit(1)
                 Spacer()
                 Text(statusText).font(.caption).foregroundStyle(color)
             }
-            if let stage = task.stage { Text(stage).font(.caption) }
+            if task.stage != nil || task.message != nil {
+                HStack(spacing: 4) {
+                    if let stage = task.stage {
+                        Text(stage).foregroundStyle(.primary)
+                    }
+                    if task.stage != nil, task.message != nil {
+                        Text("·").foregroundStyle(.tertiary)
+                    }
+                    if let message = task.message {
+                        Text(message).foregroundStyle(.secondary)
+                    }
+                }
+                .font(.caption)
+                .lineLimit(1)
+            }
             if let progress = task.progress, let fraction = progress.fraction {
-                ProgressView(value: fraction) {
-                    Text("\(display(progress.completed))/\(display(progress.total)) \(progress.unit ?? "")")
+                HStack(spacing: 8) {
+                    ProgressView(value: fraction)
+                        .progressViewStyle(.linear)
+                    Text(progressText(progress))
                         .font(.caption2).foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .fixedSize()
+                    timestampAndTarget
+                }
+            } else {
+                HStack {
+                    Spacer()
+                    timestampAndTarget
                 }
             }
-            if let message = task.message { Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
-            HStack(spacing: 5) {
-                Text(task.updatedAt, style: .relative).font(.caption2).foregroundStyle(.tertiary)
-                if let error = collector?.lastError {
-                    Text("· 采集异常：\(error)").font(.caption2).foregroundStyle(.orange).lineLimit(1)
-                }
-                Spacer()
-                if let target = task.target, let url = targetURL(target) {
-                    Link("打开", destination: url).font(.caption2)
-                }
+            if let error = collector?.lastError {
+                Text("采集异常：\(error)")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .lineLimit(1)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private var timestampAndTarget: some View {
+        Text(task.updatedAt, style: .relative)
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .fixedSize()
+        if let target = task.target, let url = targetURL(target) {
+            Link("打开", destination: url).font(.caption2)
+        }
     }
 
     private var statusText: String {
@@ -376,6 +406,10 @@ struct TaskRow: View {
     }
     private func display(_ value: Double) -> String {
         value.rounded() == value ? String(Int(value)) : String(format: "%.1f", value)
+    }
+    private func progressText(_ progress: WorkProgress) -> String {
+        let unit = progress.unit.map { " \($0)" } ?? ""
+        return "\(display(progress.completed))/\(display(progress.total))\(unit)"
     }
     private func targetURL(_ target: String) -> URL? {
         if target.hasPrefix("/") { return URL(fileURLWithPath: target) }

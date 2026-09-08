@@ -9,6 +9,7 @@ struct TaskBeaconCLI {
             var arguments = Array(CommandLine.arguments.dropFirst())
             guard let command = arguments.first else { return usage() }
             arguments.removeFirst()
+            if ["help", "--help", "-h"].contains(command) { return usage() }
             if command == "daemon" { return try daemon(arguments) }
 
             let client = TaskBeaconClient()
