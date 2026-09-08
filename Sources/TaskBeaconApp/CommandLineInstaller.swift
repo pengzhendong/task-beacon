@@ -7,6 +7,22 @@ enum CommandLineInstaller {
 
     private static let toolNames = ["taskbeacon", "taskbeacon-mcp"]
 
+    static func installAutomatically() {
+        let bundlePath = Bundle.main.bundleURL.standardizedFileURL.path
+        let userApplications = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Applications", isDirectory: true)
+            .standardizedFileURL.path
+        guard bundlePath.hasPrefix("/Applications/") || bundlePath.hasPrefix(userApplications + "/") else {
+            return
+        }
+        do {
+            try install()
+        } catch {
+            // Keep launching normally. The visible Install CLI action can explain and retry failures.
+            NSLog("TaskBeacon automatic CLI installation: %@", error.localizedDescription)
+        }
+    }
+
     static var isInstalled: Bool {
         guard let bundledTools = Bundle.main.resourceURL?
             .appendingPathComponent("bin", isDirectory: true) else { return false }

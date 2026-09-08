@@ -69,7 +69,7 @@ Building requires macOS 13+ and Swift 6. The local app bundle uses an ad-hoc sig
 
 ## Quick start
 
-The menu-bar app starts its bundled local service automatically. After choosing **Install CLI**, use it directly:
+The menu-bar app starts its bundled local service and links the CLI tools into `~/.local/bin` automatically. The **Install CLI** action remains available to retry or diagnose a conflicting path. Then use it directly:
 
 Register a task, report progress, and complete it:
 

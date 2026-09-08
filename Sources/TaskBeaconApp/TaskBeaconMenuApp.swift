@@ -7,6 +7,7 @@ struct TaskBeaconMenuApp: App {
     @StateObject private var updater: UpdateController
 
     init() {
+        CommandLineInstaller.installAutomatically()
         let model = BeaconModel()
         _model = StateObject(wrappedValue: model)
         _updater = StateObject(wrappedValue: UpdateController(model: model))
