@@ -18,7 +18,8 @@ struct TaskBeaconMenuApp: App {
     var body: some Scene {
         MenuBarExtra {
             BeaconMenu(model: model, updater: updater)
-                .frame(width: 390, height: 520)
+                .frame(width: 390, height: panelHeight)
+                .animation(.easeInOut(duration: 0.18), value: model.tasks.count)
         } label: {
             Image(nsImage: MenuBarIcon.image)
                 .renderingMode(MenuBarIcon.image.isTemplate ? .template : .original)
@@ -29,6 +30,10 @@ struct TaskBeaconMenuApp: App {
                 .help("TaskBeacon · \(model.activeCount) 个进行中 · \(model.attentionCount) 个需处理")
         }
         .menuBarExtraStyle(.window)
+    }
+
+    private var panelHeight: CGFloat {
+        min(520, max(230, 140 + CGFloat(model.tasks.count) * 90))
     }
 }
 
@@ -245,43 +250,96 @@ struct BeaconMenu: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("TaskBeacon").font(.headline)
-                    Text("\(model.activeCount) 个进行中 · \(model.attentionCount) 个需处理")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button { Task { await model.refresh() } } label: { Image(systemName: "arrow.clockwise") }
-                    .buttonStyle(.plain)
-            }
-            .padding()
-
-            Divider()
+            header
             if let error = model.connectionError {
                 EmptyState(title: "服务未连接", systemImage: "bolt.slash", detail: error)
             } else if model.tasks.isEmpty {
                 EmptyState(title: "暂无任务", systemImage: "checkmark.circle",
                            detail: "通过 CLI 或 MCP 注册任务后会显示在这里")
             } else {
-                List {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 14) {
                     ForEach(groups, id: \.key) { group in
-                        Section(group.key) {
-                            ForEach(group.value) { task in TaskRow(task: task, collector: collector(for: task.id)) }
+                            VStack(alignment: .leading, spacing: 7) {
+                                HStack {
+                                    Text(group.key)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Text("\(group.value.count)")
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(.tertiary)
+                                }
+                                ForEach(group.value) { task in
+                                    TaskRow(task: task, collector: collector(for: task.id))
+                                }
+                            }
                         }
                     }
+                    .padding(12)
                 }
-                .listStyle(.inset)
+                .background(Color(nsColor: .windowBackgroundColor).opacity(0.3))
             }
-            Divider()
-            HStack {
-                Button("检查更新…") { updater.checkForUpdates() }
-                Button("退出") { NSApplication.shared.terminate(nil) }
-                Spacer()
-                Text("每 2 秒刷新").font(.caption2).foregroundStyle(.tertiary)
-            }
-            .padding(10)
+            footer
         }
+    }
+
+    private var header: some View {
+        HStack(spacing: 11) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 32, height: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("TaskBeacon")
+                    .font(.headline)
+                HStack(spacing: 5) {
+                    Circle().fill(brandGreen).frame(width: 6, height: 6)
+                    Text("\(model.activeCount) 个进行中")
+                    if model.attentionCount > 0 {
+                        Text("· \(model.attentionCount) 个需处理")
+                            .foregroundStyle(.orange)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button { Task { await model.refresh() } } label: {
+                Image(systemName: "arrow.clockwise")
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.plain)
+            .background(Color.primary.opacity(0.055), in: Circle())
+            .help("立即刷新")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 12) {
+            Button { updater.checkForUpdates() } label: {
+                Label("检查更新", systemImage: "arrow.triangle.2.circlepath")
+            }
+            .buttonStyle(.plain)
+            Spacer()
+            Text("每 2 秒刷新")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            Divider().frame(height: 14)
+            Button { NSApplication.shared.terminate(nil) } label: {
+                Image(systemName: "power")
+            }
+            .buttonStyle(.plain)
+            .help("退出 TaskBeacon")
+        }
+        .font(.caption)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .overlay(alignment: .top) { Divider() }
     }
 
     private var groups: [(key: String, value: [TaskRecord])] {
@@ -294,6 +352,10 @@ struct BeaconMenu: View {
     private func collector(for taskID: String) -> CollectorRecord? {
         model.collectors.first { $0.taskID == taskID }
     }
+
+    private var brandGreen: Color {
+        Color(red: 0.38, green: 0.55, blue: 0.45)
+    }
 }
 
 struct EmptyState: View {
@@ -302,10 +364,14 @@ struct EmptyState: View {
     let detail: String
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             Spacer()
-            Image(systemName: systemImage).font(.system(size: 30)).foregroundStyle(.secondary)
-            Text(title).font(.headline)
+            Image(systemName: systemImage)
+                .font(.system(size: 22, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 42, height: 42)
+                .background(Color.primary.opacity(0.05), in: Circle())
+            Text(title).font(.subheadline.weight(.semibold))
             Text(detail).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
             Spacer()
@@ -318,17 +384,38 @@ struct TaskRow: View {
     let collector: CollectorRecord?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Image(systemName: icon).foregroundStyle(color)
-                Text(task.title).fontWeight(.medium).lineLimit(1)
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(color)
+                    .frame(width: 7, height: 7)
+                Text(task.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
                 Spacer()
-                Text(statusText).font(.caption).foregroundStyle(color)
+                Text(task.updatedAt, style: .relative)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize()
+                Text(statusText)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(color)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(color.opacity(0.12), in: Capsule())
+                if let target = task.target, let url = targetURL(target) {
+                    Link(destination: url) {
+                        Image(systemName: "arrow.up.right")
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .help("打开结果")
+                }
             }
             if task.stage != nil || task.message != nil {
                 HStack(spacing: 4) {
                     if let stage = task.stage {
-                        Text(stage).foregroundStyle(.primary)
+                        Text(stage).fontWeight(.medium).foregroundStyle(.primary)
                     }
                     if task.stage != nil, task.message != nil {
                         Text("·").foregroundStyle(.tertiary)
@@ -344,37 +431,28 @@ struct TaskRow: View {
                 HStack(spacing: 8) {
                     ProgressView(value: fraction)
                         .progressViewStyle(.linear)
+                        .tint(color)
                     Text(progressText(progress))
                         .font(.caption2).foregroundStyle(.secondary)
                         .monospacedDigit()
                         .fixedSize()
-                    timestampAndTarget
-                }
-            } else {
-                HStack {
-                    Spacer()
-                    timestampAndTarget
                 }
             }
             if let error = collector?.lastError {
-                Text("采集异常：\(error)")
+                Label("采集异常：\(error)", systemImage: "exclamationmark.triangle.fill")
                     .font(.caption2)
                     .foregroundStyle(.orange)
                     .lineLimit(1)
             }
         }
-        .padding(.vertical, 2)
-    }
-
-    @ViewBuilder
-    private var timestampAndTarget: some View {
-        Text(task.updatedAt, style: .relative)
-            .font(.caption2)
-            .foregroundStyle(.tertiary)
-            .fixedSize()
-        if let target = task.target, let url = targetURL(target) {
-            Link("打开", destination: url).font(.caption2)
+        .padding(11)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.76),
+                    in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
         }
+        .shadow(color: .black.opacity(0.035), radius: 2, y: 1)
     }
 
     private var statusText: String {
@@ -386,18 +464,9 @@ struct TaskRow: View {
         case .completed: "已完成"
         }
     }
-    private var icon: String {
-        switch task.status {
-        case .running: "play.circle.fill"
-        case .waiting: "pause.circle.fill"
-        case .failed: "xmark.circle.fill"
-        case .cancelled: "minus.circle.fill"
-        case .completed: "checkmark.circle.fill"
-        }
-    }
     private var color: Color {
         switch task.status {
-        case .running: .blue
+        case .running: Color(red: 0.38, green: 0.55, blue: 0.45)
         case .waiting: .orange
         case .failed: .red
         case .cancelled: .secondary
