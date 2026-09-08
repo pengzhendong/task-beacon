@@ -159,7 +159,7 @@ make app
 
 `make app` 会在 `dist/TaskBeacon.app` 生成本地临时签名的应用包，并嵌入守护进程、CLI、MCP server 和 Sparkle framework。
 
-正式图标采用白色叠卡、命令符和鼠尾草绿进度条。原始图稿在 `Assets/TaskBeacon.source.png`；执行 `make icons` 可重新导出带透明外缘的 PNG 和各尺寸 `.icns`，生成方式见 [图标说明](Assets/ICON.md)。
+正式图标采用白色叠卡、命令符和鼠尾草绿进度条；菜单栏使用同图案的白色单色透明版，软件图标保持白底。原始图稿在 `Assets/TaskBeacon.source.png`；执行 `make icons` 可重新导出应用图标和菜单栏透明资源，生成方式见 [图标说明](Assets/ICON.md)。
 
 发布由 GitHub Actions 完成。先同步 `Resources/Info.plist` 中的版本，然后推送匹配的 tag：
 

@@ -5,9 +5,12 @@ Final design: two white task cards, a graphite command prompt, and a sage-green 
 - `TaskBeacon.source.png`: approved original raster artwork, generated with the built-in ImageGen tool.
 - `TaskBeacon.png`: production 1024×1024 sRGB PNG with transparent corners.
 - `../Resources/TaskBeacon.icns`: macOS icon bundle with 16–1024 px representations.
+- `../Resources/TaskBeaconStatus.png`: menu-bar-only monochrome PNG; white artwork surfaces are real alpha and all retained non-white details are pure white.
 - `../scripts/generate-icons.sh`: repeatable export (`make icons`).
 
 The exporter preserves the approved artwork, resizes it and applies a continuous rounded-square alpha mask for macOS packaging. It does not redraw the cards or progress bar. Earlier Icon Composer/vector explorations are not the source for this final icon.
+
+The menu-bar variant is derived from the same approved artwork by `scripts/export-status-icon.swift`. White card surfaces become transparent; detached shadow fragments are removed, and the retained command mark and progress fill become pure white. Empty margins are trimmed for legibility at 22 pt, retaining the high-resolution source pixels. The Finder/application icon stays unchanged. An ImageGen transparency attempt returned an opaque checkerboard and was rejected; the shipped status asset uses a deterministic alpha mask, not that generated image.
 
 ## Generation prompt
 

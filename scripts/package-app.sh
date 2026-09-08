@@ -22,6 +22,7 @@ cp "${binary_dir}/taskbeacon" "${app_dir}/Contents/Resources/bin/taskbeacon"
 cp "${binary_dir}/taskbeacon-mcp" "${app_dir}/Contents/Resources/bin/taskbeacon-mcp"
 cp "${root_dir}/Resources/Info.plist" "${app_dir}/Contents/Info.plist"
 cp "${root_dir}/Resources/TaskBeacon.icns" "${app_dir}/Contents/Resources/TaskBeacon.icns"
+cp "${root_dir}/Resources/TaskBeaconStatus.png" "${app_dir}/Contents/Resources/TaskBeaconStatus.png"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${version}" "${app_dir}/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${build_number}" "${app_dir}/Contents/Info.plist"
 

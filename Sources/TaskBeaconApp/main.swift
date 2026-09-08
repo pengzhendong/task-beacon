@@ -16,12 +16,39 @@ struct TaskBeaconMenuApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra("TaskBeacon", systemImage: model.symbolName) {
+        MenuBarExtra {
             BeaconMenu(model: model, updater: updater)
                 .frame(width: 390, height: 520)
+        } label: {
+            Image(nsImage: MenuBarIcon.image)
+                .renderingMode(MenuBarIcon.image.isTemplate ? .template : .original)
+                .interpolation(.high)
+                .frame(width: 22, height: 22)
+                .accessibilityLabel("TaskBeacon")
+                .accessibilityValue("\(model.activeCount) 个进行中，\(model.attentionCount) 个需处理")
+                .help("TaskBeacon · \(model.activeCount) 个进行中 · \(model.attentionCount) 个需处理")
         }
         .menuBarExtraStyle(.window)
     }
+}
+
+@MainActor
+private enum MenuBarIcon {
+    static let image: NSImage = {
+        let icon: NSImage
+        if let url = Bundle.main.url(forResource: "TaskBeaconStatus", withExtension: "png"),
+           let bundledIcon = NSImage(contentsOf: url) {
+            icon = bundledIcon
+            icon.isTemplate = false
+        } else {
+            icon = NSImage(systemSymbolName: "terminal", accessibilityDescription: "TaskBeacon")
+                ?? NSImage(size: NSSize(width: 22, height: 22))
+            icon.isTemplate = true
+        }
+        // Keep the source pixels for Retina rendering while sizing the status item in points.
+        icon.size = NSSize(width: 22, height: 22)
+        return icon
+    }()
 }
 
 @MainActor
@@ -93,7 +120,6 @@ final class BeaconModel: ObservableObject {
 
     var activeCount: Int { tasks.filter { !$0.status.isTerminal }.count }
     var attentionCount: Int { tasks.filter { $0.status == .waiting || $0.status == .failed }.count }
-    var symbolName: String { attentionCount > 0 ? "exclamationmark.beacon.radiowaves.left.and.right" : "dot.radiowaves.left.and.right" }
 
     init() {
         startRefreshing()

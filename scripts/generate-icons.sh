@@ -5,6 +5,8 @@ root_dir="${0:A:h:h}"
 cd "$root_dir"
 swift -module-cache-path "${TMPDIR:-/tmp}/taskbeacon-icon-module-cache" \
   scripts/export-icon.swift Assets/TaskBeacon.source.png Assets/TaskBeacon.png
+swift -module-cache-path "${TMPDIR:-/tmp}/taskbeacon-icon-module-cache" \
+  scripts/export-status-icon.swift Assets/TaskBeacon.png Resources/TaskBeaconStatus.png
 
 scratch_dir="$(mktemp -d /tmp/taskbeacon-icons.XXXXXX)"
 iconset_dir="$scratch_dir/TaskBeacon.iconset"

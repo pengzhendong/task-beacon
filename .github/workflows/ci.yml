@@ -30,5 +30,6 @@ jobs:
           test -x dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon-mcp
           test -d dist/TaskBeacon.app/Contents/Frameworks/Sparkle.framework
           test -s dist/TaskBeacon.app/Contents/Resources/TaskBeacon.icns
+          test -s dist/TaskBeacon.app/Contents/Resources/TaskBeaconStatus.png
           codesign --verify --strict dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon
           codesign --verify --strict dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon-mcp
