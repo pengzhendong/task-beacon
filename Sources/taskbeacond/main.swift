@@ -180,17 +180,28 @@ struct TaskBeaconDaemon {
                 return WireResponse(ok: true, tasks: await store.listTasks())
             case "snapshot":
                 return WireResponse(ok: true, snapshot: await store.snapshot())
+            case "task.forget":
+                guard let id = request.taskID else { throw TaskBeaconError.invalid("task_id is required") }
+                let invalidatedRunIDs = try await store.forgetTask(id: id)
+                for runID in invalidatedRunIDs { collectorProcesses.stop(runID: runID) }
+                return WireResponse(ok: true, message: "task tracking removed")
             case "collector.register":
                 guard let collector = request.collector else { throw TaskBeaconError.invalid("collector is required") }
-                return WireResponse(ok: true, collector: try await store.registerCollector(collector))
+                let result = try await store.registerCollectorAndInvalidate(collector)
+                if let runID = result.invalidatedRunID { collectorProcesses.stop(runID: runID) }
+                return WireResponse(ok: true, collector: result.collector)
             case "collector.state":
                 guard let id = request.collectorID, let state = request.collectorState else {
                     throw TaskBeaconError.invalid("collector_id and state are required")
                 }
-                return WireResponse(ok: true, collector: try await store.setCollectorState(id: id, state: state))
+                let result = try await store.setCollectorStateAndInvalidate(id: id, state: state)
+                if let runID = result.invalidatedRunID { collectorProcesses.stop(runID: runID) }
+                return WireResponse(ok: true, collector: result.collector)
             case "collector.remove":
                 guard let id = request.collectorID else { throw TaskBeaconError.invalid("collector_id is required") }
-                try await store.removeCollector(id: id)
+                if let runID = try await store.removeCollectorAndInvalidate(id: id) {
+                    collectorProcesses.stop(runID: runID)
+                }
                 return WireResponse(ok: true)
             case "collector.list":
                 return WireResponse(ok: true, collectors: await store.listCollectors())
@@ -206,36 +217,49 @@ struct TaskBeaconDaemon {
         while !Task.isCancelled {
             let due = await store.dueCollectors()
             for collector in due {
-                do { try await store.markCollectorStarted(id: collector.id) }
-                catch { continue }
-                Task { await execute(collector: collector, store: store) }
+                let runID = UUID()
+                guard collectorProcesses.reserve(runID: runID, collectorID: collector.id) else { continue }
+                do {
+                    guard let claimedCollector = try await store.claimCollectorRun(
+                        id: collector.id, runID: runID
+                    ) else {
+                        collectorProcesses.abandon(runID: runID)
+                        continue
+                    }
+                    Task { await execute(collector: claimedCollector, runID: runID, store: store) }
+                } catch {
+                    collectorProcesses.abandon(runID: runID)
+                    continue
+                }
             }
             try? await Task.sleep(for: .seconds(1))
         }
     }
 
-    private static func execute(collector: CollectorRecord, store: TaskStore) async {
+    private static func execute(collector: CollectorRecord, runID: UUID, store: TaskStore) async {
+        guard await store.isCollectorRunCurrent(id: collector.id, runID: runID) else {
+            collectorProcesses.abandon(runID: runID)
+            return
+        }
         do {
             let data = try await run(command: collector.command,
                                      workingDirectory: collector.workingDirectory,
-                                     timeout: collector.timeoutSeconds)
+                                     timeout: collector.timeoutSeconds,
+                                     collectorID: collector.id,
+                                     runID: runID)
             let output = try JSONCoding.decoder().decode(CollectorOutput.self, from: data)
             let status: TaskStatus? = output.done == true ? .completed : output.status
             let patch = TaskPatch(status: status, stage: output.stage, message: output.message,
                                   progress: output.progress, result: output.result, target: output.target)
-            _ = try await store.update(taskID: collector.taskID, eventID: UUID().uuidString,
-                                       sequence: nil, observedAt: Date(), source: "collector:\(collector.id)", patch: patch)
-            try await store.recordCollectorRun(id: collector.id, success: true, error: nil)
-            if status?.isTerminal == true {
-                _ = try? await store.setCollectorState(id: collector.id, state: .paused)
-            }
+            _ = try await store.completeCollectorRun(id: collector.id, runID: runID, patch: patch)
         } catch {
-            try? await store.recordCollectorRun(id: collector.id, success: false,
-                                                error: error.localizedDescription)
+            _ = try? await store.failCollectorRun(id: collector.id, runID: runID,
+                                                  error: error.localizedDescription)
         }
     }
 
-    private static func run(command: String, workingDirectory: String?, timeout: Double) async throws -> Data {
+    private static func run(command: String, workingDirectory: String?, timeout: Double,
+                            collectorID: String, runID: UUID) async throws -> Data {
         try await Task.detached {
             let process = Process()
             let output = Pipe()
@@ -247,8 +271,8 @@ struct TaskBeaconDaemon {
             if let workingDirectory {
                 process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
             }
-            try collectorProcesses.start(process)
-            defer { collectorProcesses.finished(process) }
+            try collectorProcesses.start(process, collectorID: collectorID, runID: runID)
+            defer { collectorProcesses.finished(runID: runID) }
             let deadline = Date().addingTimeInterval(timeout)
             while process.isRunning && Date() < deadline && !collectorProcesses.isStopping {
                 usleep(50_000)
@@ -258,6 +282,12 @@ struct TaskBeaconDaemon {
             }
             if process.isRunning {
                 process.terminate()
+                let terminationDeadline = Date().addingTimeInterval(1)
+                while process.isRunning && Date() < terminationDeadline { usleep(20_000) }
+                if process.isRunning {
+                    _ = kill(process.processIdentifier, SIGKILL)
+                    process.waitUntilExit()
+                }
                 throw TaskBeaconError.connection("collector timed out after \(timeout) seconds")
             }
             let stdout = output.fileHandleForReading.readDataToEndOfFile()
@@ -272,8 +302,29 @@ struct TaskBeaconDaemon {
 
 /// Tracks only subprocesses launched by this daemon; it never searches for or kills business tasks.
 private final class CollectorProcesses: @unchecked Sendable {
+    private enum Entry {
+        case reserved(collectorID: String)
+        case running(collectorID: String, process: Process)
+        case cancelled(collectorID: String, process: Process?)
+
+        var collectorID: String {
+            switch self {
+            case .reserved(let collectorID), .running(let collectorID, _), .cancelled(let collectorID, _):
+                return collectorID
+            }
+        }
+
+        var process: Process? {
+            switch self {
+            case .reserved: nil
+            case .running(_, let process): process
+            case .cancelled(_, let process): process
+            }
+        }
+    }
+
     private let lock = NSLock()
-    private var processes: [ObjectIdentifier: Process] = [:]
+    private var runs: [UUID: Entry] = [:]
     private var stopping = false
 
     var isStopping: Bool {
@@ -282,24 +333,64 @@ private final class CollectorProcesses: @unchecked Sendable {
         return stopping
     }
 
-    func start(_ process: Process) throws {
+    func reserve(runID: UUID, collectorID: String) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        guard !stopping else { throw TaskBeaconError.connection("service is preparing for an update") }
-        try process.run()
-        processes[ObjectIdentifier(process)] = process
+        guard !stopping, runs[runID] == nil,
+              !runs.values.contains(where: { $0.collectorID == collectorID }) else { return false }
+        runs[runID] = .reserved(collectorID: collectorID)
+        return true
     }
 
-    func finished(_ process: Process) {
+    func start(_ process: Process, collectorID: String, runID: UUID) throws {
         lock.lock()
         defer { lock.unlock() }
-        processes.removeValue(forKey: ObjectIdentifier(process))
+        guard !stopping else {
+            runs.removeValue(forKey: runID)
+            throw TaskBeaconError.connection("service is preparing for an update")
+        }
+        guard case .reserved(let reservedCollectorID)? = runs[runID],
+              reservedCollectorID == collectorID else {
+            runs.removeValue(forKey: runID)
+            throw TaskBeaconError.connection("collector run was cancelled before launch")
+        }
+        do {
+            try process.run()
+            runs[runID] = .running(collectorID: collectorID, process: process)
+        } catch {
+            runs.removeValue(forKey: runID)
+            throw error
+        }
+    }
+
+    func finished(runID: UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+        runs.removeValue(forKey: runID)
+    }
+
+    func abandon(runID: UUID) {
+        lock.lock()
+        runs.removeValue(forKey: runID)
+        lock.unlock()
+    }
+
+    func stop(runID: UUID) {
+        lock.lock()
+        guard let entry = runs[runID] else {
+            lock.unlock()
+            return
+        }
+        let process = entry.process
+        runs[runID] = .cancelled(collectorID: entry.collectorID, process: process)
+        lock.unlock()
+        if let process, process.isRunning { process.terminate() }
     }
 
     func stopForUpdate() {
         lock.lock()
         stopping = true
-        let running = Array(processes.values)
+        let running = runs.values.compactMap(\.process)
         lock.unlock()
         for process in running where process.isRunning { process.terminate() }
         let deadline = Date().addingTimeInterval(1)

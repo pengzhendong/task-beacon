@@ -19,6 +19,7 @@ struct TaskBeaconCLI {
             case "update": response = try update(arguments, client: client, forcedStatus: nil)
             case "complete": response = try update(arguments, client: client, forcedStatus: .completed)
             case "cancel": response = try update(arguments, client: client, forcedStatus: .cancelled)
+            case "forget": response = try forget(arguments, client: client)
             case "list": response = try client.send(WireRequest(action: "list"))
             case "snapshot": response = try client.send(WireRequest(action: "snapshot"))
             case "collector": response = try collector(arguments, client: client)
@@ -103,6 +104,14 @@ struct TaskBeaconCLI {
         default:
             throw TaskBeaconError.invalid("unknown collector subcommand: \(subcommand)")
         }
+    }
+
+    private static func forget(_ args: [String], client: TaskBeaconClient) throws -> WireResponse {
+        let options = Options(args)
+        guard let taskID = options.positionals.first else {
+            throw TaskBeaconError.invalid("task id is required")
+        }
+        return try client.send(WireRequest(action: "task.forget", taskID: taskID))
     }
 
     private static func daemon(_ args: [String]) throws {
@@ -203,6 +212,7 @@ struct TaskBeaconCLI {
                     [--completed N --total N --unit NAME] [--event-id ID] [--sequence N]
           taskbeacon complete TASK_ID [--result TEXT] [--target URL_OR_PATH]
           taskbeacon cancel TASK_ID [--message TEXT]
+          taskbeacon forget TASK_ID
           taskbeacon list [--json]
           taskbeacon snapshot
           taskbeacon collector add --task TASK_ID --command COMMAND [--interval SEC] [--timeout SEC]

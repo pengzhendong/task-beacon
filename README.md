@@ -89,6 +89,9 @@ taskbeacon update demo \
 taskbeacon complete demo \
   --result "Index ready" \
   --target "/path/to/output"
+
+# Remove only TaskBeacon's tracking record; the underlying task keeps running.
+taskbeacon forget demo
 ```
 
 Run `taskbeacon --help` for the complete command entry points. The bundled binary remains available at `/Applications/TaskBeacon.app/Contents/Resources/bin/taskbeacon`.
@@ -156,6 +159,8 @@ taskbeacon collector pause training-log
 taskbeacon collector resume training-log
 taskbeacon collector remove training-log
 ```
+
+Executions are single-flight per collector. If a command runs longer than its interval, TaskBeacon waits for it to finish and schedules the next run one interval later. Pausing, removing, or replacing a collector invalidates any in-flight result and stops its collector subprocess when possible.
 
 Collector commands run under the current user's `/bin/zsh`. They should observe work rather than mutate or restart it. Do not put credentials in progress messages or command text; prefer Keychain, restricted environment variables, or an existing CLI login.
 

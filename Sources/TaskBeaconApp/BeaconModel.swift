@@ -64,6 +64,22 @@ final class BeaconModel: ObservableObject {
         }
     }
 
+    func forgetTask(id: String) async -> String? {
+        do {
+            let response = try await Task.detached {
+                try TaskBeaconClient().send(WireRequest(action: "task.forget", taskID: id))
+            }.value
+            guard response.ok else {
+                throw TaskBeaconError.invalid(response.message ?? "无法停止跟踪任务")
+            }
+            tasks.removeAll { $0.id == id }
+            collectors.removeAll { $0.taskID == id }
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     func resumeAfterUpdateFailure() {
         preparingForUpdate = false
         attemptedDaemonStart = false

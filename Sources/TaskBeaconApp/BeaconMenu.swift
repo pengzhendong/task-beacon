@@ -32,7 +32,11 @@ struct BeaconMenu: View {
                                         .foregroundStyle(.tertiary)
                                 }
                                 ForEach(group.value) { task in
-                                    TaskRow(task: task, collector: collector(for: task.id))
+                                    TaskRow(
+                                        task: task,
+                                        collector: collector(for: task.id),
+                                        onForget: { forget(task) }
+                                    )
                                 }
                             }
                         }
@@ -110,6 +114,14 @@ struct BeaconMenu: View {
             )
         } catch {
             installerNotice = InstallerNotice(title: "安装失败", message: error.localizedDescription)
+        }
+    }
+
+    private func forget(_ task: TaskRecord) {
+        Task {
+            if let error = await model.forgetTask(id: task.id) {
+                installerNotice = InstallerNotice(title: "停止跟踪失败", message: error)
+            }
         }
     }
 
@@ -191,6 +203,8 @@ struct EmptyState: View {
 struct TaskRow: View {
     let task: TaskRecord
     let collector: CollectorRecord?
+    let onForget: () -> Void
+    @State private var confirmingForget = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -220,6 +234,19 @@ struct TaskRow: View {
                     .buttonStyle(.plain)
                     .help("打开结果")
                 }
+                Menu {
+                    Button("停止跟踪…", role: .destructive) {
+                        confirmingForget = true
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.caption2.weight(.semibold))
+                        .frame(width: 16, height: 16)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("更多操作")
             }
             if task.stage != nil || task.message != nil {
                 HStack(spacing: 4) {
@@ -262,6 +289,12 @@ struct TaskRow: View {
                 .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.035), radius: 2, y: 1)
+        .alert("停止跟踪“\(task.title)”？", isPresented: $confirmingForget) {
+            Button("停止跟踪", role: .destructive, action: onForget)
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("只会从 TaskBeacon 移除进度记录和关联采集器，不会终止实际任务。")
+        }
     }
 
     private var statusText: String {

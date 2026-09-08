@@ -87,6 +87,9 @@ taskbeacon update demo \
 taskbeacon complete demo \
   --result "处理完成" \
   --target "https://github.com/pengzhendong/task-beacon"
+
+# 只移除 TaskBeacon 中的跟踪记录，不会终止实际任务。
+taskbeacon forget demo
 ```
 
 运行 `taskbeacon --help` 查看完整命令入口。包内原始路径仍是 `/Applications/TaskBeacon.app/Contents/Resources/bin/taskbeacon`。
@@ -154,6 +157,8 @@ taskbeacon collector pause training-log
 taskbeacon collector resume training-log
 taskbeacon collector remove training-log
 ```
+
+同一个采集器始终只会运行一个实例。如果命令耗时超过轮询间隔，TaskBeacon 会等待本轮结束，再从结束时间起计算下一次间隔。暂停、删除或同 ID 替换采集器时，仍在运行的旧结果会失效，并尽可能终止对应的采集子进程。
 
 采集命令由当前用户的 `/bin/zsh` 执行，应当只做观察，不应修改或重启业务任务。不要把凭据写入进度消息或命令文本；优先从 Keychain、受限环境变量或已有 CLI 登录状态读取。
 
