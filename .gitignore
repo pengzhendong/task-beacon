@@ -1,0 +1,11 @@
+.build/
+.swiftpm/
+dist/
+*.xcodeproj/
+.DS_Store
+
+# Local design explorations; the chosen artwork is Assets/TaskBeacon.source.png.
+Assets/IconConcepts/
+Assets/IconConceptsYellow/
+Assets/IconOptions/
+Assets/TaskBeacon.icon/

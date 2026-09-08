@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: swift build
+      - name: Test
+        run: swift run taskbeacon-selftest
+      - name: Package app
+        run: ./scripts/package-app.sh
+      - name: Verify app bundle
+        run: |
+          plutil -lint dist/TaskBeacon.app/Contents/Info.plist
+          codesign --verify --deep --strict --verbose=2 dist/TaskBeacon.app
+          test -x dist/TaskBeacon.app/Contents/MacOS/TaskBeaconMenu
+          test -x dist/TaskBeacon.app/Contents/Helpers/taskbeacond
+          test -x dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon
+          test -x dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon-mcp
+          test -d dist/TaskBeacon.app/Contents/Frameworks/Sparkle.framework
+          test -s dist/TaskBeacon.app/Contents/Resources/TaskBeacon.icns
+          codesign --verify --strict dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon
+          codesign --verify --strict dist/TaskBeacon.app/Contents/Resources/bin/taskbeacon-mcp
