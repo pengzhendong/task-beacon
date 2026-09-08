@@ -17,7 +17,7 @@ struct BeaconMenu: View {
                 EmptyState(title: "暂无任务", systemImage: "checkmark.circle",
                            detail: "通过 CLI 或 MCP 注册任务后会显示在这里")
             } else {
-                ScrollView {
+                ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(alignment: .leading, spacing: 14) {
                         ForEach(groups, id: \.key) { group in
                             VStack(alignment: .leading, spacing: 7) {
