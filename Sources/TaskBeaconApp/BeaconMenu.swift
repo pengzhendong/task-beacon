@@ -5,6 +5,8 @@ import TaskBeaconCore
 struct BeaconMenu: View {
     @ObservedObject var model: BeaconModel
     @ObservedObject var updater: UpdateController
+    @State private var commandLineToolsInstalled = CommandLineInstaller.isInstalled
+    @State private var installerNotice: InstallerNotice?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,17 +43,21 @@ struct BeaconMenu: View {
             }
             footer
         }
+        .alert(item: $installerNotice) { notice in
+            Alert(title: Text(notice.title), message: Text(notice.message),
+                  dismissButton: .default(Text("好")))
+        }
     }
 
     private var header: some View {
         HStack(spacing: 6) {
-            Circle().fill(brandGreen).frame(width: 7, height: 7)
+            Circle().fill(BeaconPalette.sage).frame(width: 7, height: 7)
             Text("\(model.activeCount) 个进行中")
                 .font(.subheadline.weight(.medium))
             if model.attentionCount > 0 {
                 Text("· \(model.attentionCount) 个需处理")
                     .font(.subheadline)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(BeaconPalette.amber)
             }
             Spacer()
             Button { Task { await model.refresh() } } label: {
@@ -74,9 +80,13 @@ struct BeaconMenu: View {
             }
             .buttonStyle(.plain)
             Spacer()
-            Text("每 2 秒刷新")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            Button { installCommandLineTools() } label: {
+                Label(commandLineToolsInstalled ? "CLI 已安装" : "安装 CLI",
+                      systemImage: commandLineToolsInstalled ? "checkmark.circle" : "terminal")
+            }
+            .buttonStyle(.plain)
+            .disabled(commandLineToolsInstalled)
+            .help("安装到 ~/.local/bin，无需管理员密码")
             Divider().frame(height: 14)
             Button { NSApplication.shared.terminate(nil) } label: {
                 Image(systemName: "power")
@@ -88,6 +98,19 @@ struct BeaconMenu: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .overlay(alignment: .top) { Divider() }
+    }
+
+    private func installCommandLineTools() {
+        do {
+            let directory = try CommandLineInstaller.install()
+            commandLineToolsInstalled = true
+            installerNotice = InstallerNotice(
+                title: "命令行工具已安装",
+                message: "已安装到 \(directory.path)，无需管理员密码。\n\n让 Codex 使用 TaskBeacon：\ncodex mcp add taskbeacon -- \(directory.path)/taskbeacon-mcp"
+            )
+        } catch {
+            installerNotice = InstallerNotice(title: "安装失败", message: error.localizedDescription)
+        }
     }
 
     private var groups: [(key: String, value: [TaskRecord])] {
@@ -108,8 +131,39 @@ struct BeaconMenu: View {
         model.collectors.first { $0.taskID == taskID }
     }
 
-    private var brandGreen: Color {
-        Color(red: 0.38, green: 0.55, blue: 0.45)
+}
+
+private struct InstallerNotice: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+}
+
+private enum BeaconPalette {
+    // Radix Colors: quiet Sage neutrals with semantic Grass, Amber and Tomato.
+    // Keep the progress fill deliberately lighter than the status foreground.
+    static let sage = adaptive(light: 0x5F6563, dark: 0xADB5B2)       // Sage 11
+    static let progressSage = adaptive(light: 0x94CE9A, dark: 0x53B365) // Grass 7 / 10
+    static let amber = adaptive(light: 0xAB6400, dark: 0xFFCA16)      // Amber 11
+    static let tomato = adaptive(light: 0xD13415, dark: 0xFF977D)     // Tomato 11
+    static let completed = adaptive(light: 0x7C8481, dark: 0x717D79)  // Sage 10
+
+    private static func adaptive(light: UInt32, dark: UInt32) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            return NSColor(hex: isDark ? dark : light)
+        })
+    }
+}
+
+private extension NSColor {
+    convenience init(hex: UInt32) {
+        self.init(
+            srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: 1
+        )
     }
 }
 
@@ -148,7 +202,7 @@ struct TaskRow: View {
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
                 Spacer()
-                Text(task.updatedAt, style: .relative)
+                Text("更新于 \(task.updatedAt, style: .relative)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .fixedSize()
@@ -186,7 +240,7 @@ struct TaskRow: View {
                 HStack(spacing: 8) {
                     ProgressView(value: fraction)
                         .progressViewStyle(.linear)
-                        .tint(color)
+                        .tint(progressColor)
                     Text(progressText(progress))
                         .font(.caption2).foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -196,7 +250,7 @@ struct TaskRow: View {
             if let error = collector?.lastError {
                 Label("采集异常：\(error)", systemImage: "exclamationmark.triangle.fill")
                     .font(.caption2)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(BeaconPalette.amber)
                     .lineLimit(1)
             }
         }
@@ -222,12 +276,16 @@ struct TaskRow: View {
 
     private var color: Color {
         switch task.status {
-        case .running: Color(red: 0.38, green: 0.55, blue: 0.45)
-        case .waiting: .orange
-        case .failed: .red
+        case .running: BeaconPalette.sage
+        case .waiting: BeaconPalette.amber
+        case .failed: BeaconPalette.tomato
         case .cancelled: .secondary
-        case .completed: .green
+        case .completed: BeaconPalette.completed
         }
+    }
+
+    private var progressColor: Color {
+        task.status == .running ? BeaconPalette.progressSage : color
     }
 
     private func display(_ value: Double) -> String {

@@ -31,27 +31,28 @@ context.setShouldAntialias(true)
 context.setStrokeColor(CGColor(gray: 1, alpha: 1))
 context.setFillColor(CGColor(gray: 1, alpha: 1))
 
-// Task/window boundary.
+// Task/window boundary. Match the approved front card's subtly landscape
+// proportions instead of using a generic square terminal outline.
 context.setLineWidth(44)
-context.addPath(CGPath(roundedRect: CGRect(x: 126, y: 126, width: 772, height: 772),
-                       cornerWidth: 128, cornerHeight: 128, transform: nil))
+context.addPath(CGPath(roundedRect: CGRect(x: 126, y: 154, width: 772, height: 716),
+                       cornerWidth: 120, cornerHeight: 120, transform: nil))
 context.strokePath()
 
 // Agent command prompt.
 context.setLineWidth(64)
 context.setLineCap(.round)
 context.setLineJoin(.round)
-context.move(to: CGPoint(x: 314, y: 664))
-context.addLine(to: CGPoint(x: 442, y: 536))
-context.addLine(to: CGPoint(x: 314, y: 408))
+context.move(to: CGPoint(x: 314, y: 692))
+context.addLine(to: CGPoint(x: 442, y: 564))
+context.addLine(to: CGPoint(x: 314, y: 436))
 context.strokePath()
 
 // Complete progress-track boundary plus a solid half-complete fill.
 context.setLineWidth(36)
-context.addPath(CGPath(roundedRect: CGRect(x: 222, y: 190, width: 580, height: 120),
+context.addPath(CGPath(roundedRect: CGRect(x: 222, y: 218, width: 580, height: 120),
                        cornerWidth: 60, cornerHeight: 60, transform: nil))
 context.strokePath()
-context.addPath(CGPath(roundedRect: CGRect(x: 248, y: 214, width: 264, height: 72),
+context.addPath(CGPath(roundedRect: CGRect(x: 248, y: 242, width: 264, height: 72),
                        cornerWidth: 36, cornerHeight: 36, transform: nil))
 context.fillPath()
 

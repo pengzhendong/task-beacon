@@ -34,7 +34,8 @@ struct TaskBeaconMCP {
             return success(id: id, result: [
                 "protocolVersion": negotiatedVersion,
                 "capabilities": ["tools": [:]],
-                "serverInfo": ["name": "taskbeacon-mcp", "version": "0.1.0"]
+                "serverInfo": ["name": "taskbeacon-mcp", "version": "0.1.0"],
+                "instructions": "Use TaskBeacon for work likely to take over a minute. Register once at the start, update only at meaningful stage or measurable progress changes, then complete or cancel it. Reuse the same task_id. Never invent percentages: omit completed and total unless progress is measurable."
             ])
         case "tools/list":
             return success(id: id, result: ["tools": tools])

@@ -45,6 +45,12 @@ TaskBeacon 是一个本地优先的 macOS AI 任务进度中心。AI 在开始�
 
 从 [Releases](https://github.com/pengzhendong/task-beacon/releases) 下载最新的 `TaskBeacon-v*.zip`，解压后将 `TaskBeacon.app` 放入 Applications 并打开。目前预构建版本面向 Apple Silicon Mac（M 系列），Intel Mac 可自行从源码构建。首次安装完成后，后续版本可在应用内完成：菜单栏选择 **检查更新…**，或等待每天一次的后台检查；下载后选择安装并重新启动，由更新器完成替换和重启，无需重新拖动应用。
 
+在面板底部选择 **安装 CLI**，即可把 `taskbeacon` 和 `taskbeacon-mcp` 暴露到 `~/.local/bin`。这是当前用户范围的安装，不需要管理员密码。如果 shell 的 `PATH` 尚未包含该目录，在 `~/.zprofile` 加入：
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 > [!NOTE]
 > 在尚未配置 Apple Developer ID 的早期 Release 中，macOS 可能提示应用来自未识别开发者。自动更新包仍会使用项目独立的 Ed25519 密钥验证；正式分发建议同时配置 Developer ID 签名和公证。
 
@@ -61,35 +67,29 @@ open dist/TaskBeacon.app
 
 ## 快速开始
 
-菜单栏应用会自动启动随包的本地服务。内置 CLI 位于：
-
-```bash
-/Applications/TaskBeacon.app/Contents/Resources/bin/taskbeacon
-```
+菜单栏应用会自动启动随包的本地服务。选择 **安装 CLI** 后可以直接使用：
 
 注册、更新并完成一个任务：
 
 ```bash
-taskbeacon=/Applications/TaskBeacon.app/Contents/Resources/bin/taskbeacon
-
-"$taskbeacon" register \
+taskbeacon register \
   --id demo \
   --title "示例任务" \
   --project task-beacon \
   --stage "准备中"
 
-"$taskbeacon" update demo \
+taskbeacon update demo \
   --stage "处理中" \
   --completed 3 \
   --total 10 \
   --unit 项
 
-"$taskbeacon" complete demo \
+taskbeacon complete demo \
   --result "处理完成" \
   --target "https://github.com/pengzhendong/task-beacon"
 ```
 
-也可以将 CLI 链接到现有的 `PATH` 目录，之后直接使用 `taskbeacon`。运行 `"$taskbeacon" --help` 查看完整命令入口。
+运行 `taskbeacon --help` 查看完整命令入口。包内原始路径仍是 `/Applications/TaskBeacon.app/Contents/Resources/bin/taskbeacon`。
 
 ## MCP 接入
 
@@ -99,7 +99,14 @@ MCP stdio server 位于：
 /Applications/TaskBeacon.app/Contents/Resources/bin/taskbeacon-mcp
 ```
 
-将这个绝对路径添加到支持 MCP 的 AI 客户端。Server 提供以下工具：
+Codex 可以直接添加已安装的 STDIO server，并检查配置：
+
+```bash
+codex mcp add taskbeacon -- "$HOME/.local/bin/taskbeacon-mcp"
+codex mcp list
+```
+
+Codex CLI、桌面端和 IDE 扩展会共享这份 MCP 配置；添加后重启客户端。TaskBeacon 还会通过 server instructions 告诉 Codex：预计超过一分钟的工作应注册任务，只在有意义的阶段或可测量进度变化时更新，并且不能编造百分比。其他 MCP 客户端可继续使用上面的包内绝对路径。Server 提供以下工具：
 
 - `task_register`
 - `task_update`
@@ -201,7 +208,7 @@ Release workflow 会验证版本、运行构建、打包应用、用 `SPARKLE_PR
 
 ## 当前范围
 
-MVP 已覆盖本机主动上报、长任务采集、多任务/子任务、重启恢复、系统通知和应用内自动更新。远端常驻采集、各 AI 客户端 hooks 适配和复杂任务分析仍在后续范围。
+MVP 已覆盖本机主动上报、长任务采集、多任务/子任务、重启恢复、系统通知和应用内自动更新。面板语义色采用开源 Radix 的 Sage、Grass、Amber 和 Tomato 色阶，并分别适配明暗模式，详见[配色说明](Assets/PALETTE.md)。远端常驻采集、各 AI 客户端 hooks 适配和复杂任务分析仍在后续范围。
 
 ## License
 

@@ -10,7 +10,7 @@ Final design: two white task cards, a graphite command prompt, and a sage-green 
 
 The exporter preserves the approved artwork, resizes it and applies a continuous rounded-square alpha mask for macOS packaging. It does not redraw the cards or progress bar. Earlier Icon Composer/vector explorations are not the source for this final icon.
 
-The menu-bar variant is rendered from the same window, command-prompt and progress motif by `scripts/export-status-icon.swift`. It uses a pure-white window outline, command mark, complete progress-track outline and half-complete fill on real transparency, tuned for legibility at 22 pt. The Finder/application icon stays unchanged. An ImageGen transparency attempt returned an opaque checkerboard and was rejected; the shipped status asset is deterministic, not that generated image.
+The menu-bar variant is rendered from the same window, command-prompt and progress motif by `scripts/export-status-icon.swift`. Its subtly landscape rounded-rectangle outline follows the approved front card rather than a generic square terminal. It uses pure-white linework, a complete progress-track outline and half-complete fill on real transparency, tuned for legibility at 22 pt. The Finder/application icon stays unchanged. An ImageGen transparency attempt returned an opaque checkerboard and was rejected; the shipped status asset is deterministic, not that generated image.
 
 ## Generation prompt
 

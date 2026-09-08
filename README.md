@@ -47,6 +47,12 @@ Download the latest `TaskBeacon-v*.zip` from [Releases](https://github.com/pengz
 
 After the first install, choose **Check for Updates…** from the menu-bar panel or let the daily background check run. Sparkle downloads, verifies, replaces, and relaunches the app in place.
 
+Choose **Install CLI** in the panel footer to expose `taskbeacon` and `taskbeacon-mcp` in `~/.local/bin`. This is a per-user installation and does not require an administrator password. If that directory is not already on your shell path, add this to `~/.zprofile`:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 > [!NOTE]
 > Early releases without an Apple Developer ID may trigger macOS's unidentified-developer warning. Update archives are still verified with TaskBeacon's dedicated Ed25519 key. Developer ID signing and notarization are recommended for public distribution.
 
@@ -63,35 +69,29 @@ Building requires macOS 13+ and Swift 6. The local app bundle uses an ad-hoc sig
 
 ## Quick start
 
-The menu-bar app starts its bundled local service automatically. Its CLI lives at:
-
-```text
-/Applications/TaskBeacon.app/Contents/Resources/bin/taskbeacon
-```
+The menu-bar app starts its bundled local service automatically. After choosing **Install CLI**, use it directly:
 
 Register a task, report progress, and complete it:
 
 ```bash
-taskbeacon=/Applications/TaskBeacon.app/Contents/Resources/bin/taskbeacon
-
-"$taskbeacon" register \
+taskbeacon register \
   --id demo \
   --title "Index documentation" \
   --project docs \
   --stage "Preparing"
 
-"$taskbeacon" update demo \
+taskbeacon update demo \
   --stage "Indexing" \
   --completed 3 \
   --total 10 \
   --unit files
 
-"$taskbeacon" complete demo \
+taskbeacon complete demo \
   --result "Index ready" \
   --target "/path/to/output"
 ```
 
-You can also link the CLI into an existing `PATH` directory and invoke `taskbeacon` directly. Run `"$taskbeacon" --help` for the complete command entry points.
+Run `taskbeacon --help` for the complete command entry points. The bundled binary remains available at `/Applications/TaskBeacon.app/Contents/Resources/bin/taskbeacon`.
 
 ## MCP integration
 
@@ -101,7 +101,14 @@ The stdio MCP server is bundled at:
 /Applications/TaskBeacon.app/Contents/Resources/bin/taskbeacon-mcp
 ```
 
-Add that absolute path to any MCP-capable AI client. The server exposes:
+For Codex, add the installed STDIO server and verify it:
+
+```bash
+codex mcp add taskbeacon -- "$HOME/.local/bin/taskbeacon-mcp"
+codex mcp list
+```
+
+Codex CLI, the desktop app, and the IDE extension share this MCP configuration. Restart the client after adding it. TaskBeacon also supplies server instructions that tell Codex to register work expected to take more than a minute, report only meaningful changes, and never invent percentages. Other MCP-capable clients can use the bundled server path shown above. The server exposes:
 
 - `task_register`
 - `task_update`
@@ -176,7 +183,7 @@ make app
 
 `make app` creates an ad-hoc-signed `dist/TaskBeacon.app` containing the menu app, daemon, CLI, MCP server, and Sparkle framework.
 
-The application icon uses white stacked task cards, a graphite command prompt, and a muted sage progress bar. The status-item variant is monochrome white on transparency. Run `make icons` to reproduce both from `Assets/TaskBeacon.source.png`; see [the icon notes](Assets/ICON.md) for details.
+The application icon uses white stacked task cards, a graphite command prompt, and a muted sage progress bar. The status-item variant is monochrome white on transparency. Panel accents use the open-source Radix Sage, Grass, Amber, and Tomato scales with adaptive light/dark values; see [the palette notes](Assets/PALETTE.md). Run `make icons` to reproduce both icons from `Assets/TaskBeacon.source.png`; see [the icon notes](Assets/ICON.md) for details.
 
 GitHub Actions owns releases. Update the version in `Resources/Info.plist`, then push a matching tag:
 
