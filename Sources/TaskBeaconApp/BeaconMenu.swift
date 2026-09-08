@@ -235,7 +235,7 @@ struct TaskRow: View {
                     .help("打开结果")
                 }
                 Menu {
-                    Button("停止跟踪…", role: .destructive) {
+                    Button("停止跟踪", role: .destructive) {
                         confirmingForget = true
                     }
                 } label: {
