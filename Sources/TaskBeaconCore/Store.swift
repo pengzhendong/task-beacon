@@ -3,6 +3,7 @@ import Foundation
 public actor TaskStore {
     private var tasks: [String: TaskRecord] = [:]
     private var collectors: [String: CollectorRecord] = [:]
+    private var activeCollectorRuns: [String: UUID] = [:]
     private var events: [TaskEvent] = []
     private var eventIDs: Set<String> = []
     private let fileURL: URL
@@ -18,6 +19,7 @@ public actor TaskStore {
         let snapshot = try JSONCoding.decoder().decode(StateSnapshot.self, from: data)
         tasks = Dictionary(uniqueKeysWithValues: snapshot.tasks.map { ($0.id, $0) })
         collectors = Dictionary(uniqueKeysWithValues: snapshot.collectors.map { ($0.id, $0) })
+        activeCollectorRuns.removeAll()
         events = snapshot.events
         eventIDs = Set(events.map(\.id))
     }
@@ -88,6 +90,7 @@ public actor TaskStore {
         guard !collector.command.isEmpty else {
             throw TaskBeaconError.invalid("collector command is required")
         }
+        activeCollectorRuns.removeValue(forKey: collector.id)
         collectors[collector.id] = collector
         try persist()
         return collector
@@ -99,7 +102,11 @@ public actor TaskStore {
             throw TaskBeaconError.notFound("collector not found: \(id)")
         }
         collector.state = state
-        if state == .active { collector.nextRunAt = Date() }
+        if state == .active {
+            collector.nextRunAt = Date()
+        } else {
+            activeCollectorRuns.removeValue(forKey: id)
+        }
         collectors[id] = collector
         try persist()
         return collector
@@ -110,6 +117,7 @@ public actor TaskStore {
         guard collectors.removeValue(forKey: id) != nil else {
             throw TaskBeaconError.notFound("collector not found: \(id)")
         }
+        activeCollectorRuns.removeValue(forKey: id)
         try persist()
     }
 
@@ -119,16 +127,60 @@ public actor TaskStore {
 
     public func dueCollectors(at date: Date = Date()) -> [CollectorRecord] {
         guard !preparingForUpdate else { return [] }
-        return collectors.values.filter { $0.state == .active && $0.nextRunAt <= date }
+        return collectors.values.filter {
+            $0.state == .active && $0.nextRunAt <= date && activeCollectorRuns[$0.id] == nil
+        }
     }
 
-    public func markCollectorStarted(id: String, at date: Date = Date()) throws {
+    @discardableResult
+    public func markCollectorStarted(id: String, at date: Date = Date()) throws -> UUID? {
         try requireWritable()
-        guard var collector = collectors[id] else { return }
+        guard var collector = collectors[id], collector.state == .active,
+              collector.nextRunAt <= date, activeCollectorRuns[id] == nil else { return nil }
+        let runID = UUID()
+        activeCollectorRuns[id] = runID
         collector.lastRunAt = date
         collector.nextRunAt = date.addingTimeInterval(collector.intervalSeconds)
         collectors[id] = collector
         try persist()
+        return runID
+    }
+
+    public func isCollectorRunCurrent(id: String, runID: UUID) -> Bool {
+        activeCollectorRuns[id] == runID && collectors[id]?.state == .active
+    }
+
+    @discardableResult
+    public func completeCollectorRun(id: String, runID: UUID, patch: TaskPatch,
+                                     at date: Date = Date()) throws -> Bool {
+        try requireWritable()
+        guard activeCollectorRuns[id] == runID, var collector = collectors[id],
+              collector.state == .active else { return false }
+
+        _ = try update(taskID: collector.taskID, eventID: UUID().uuidString,
+                       sequence: nil, observedAt: date, source: "collector:\(collector.id)", patch: patch)
+        activeCollectorRuns.removeValue(forKey: id)
+        collector.lastSuccessAt = date
+        collector.lastError = nil
+        collector.nextRunAt = date.addingTimeInterval(collector.intervalSeconds)
+        if patch.status?.isTerminal == true { collector.state = .paused }
+        collectors[id] = collector
+        try persist()
+        return true
+    }
+
+    @discardableResult
+    public func failCollectorRun(id: String, runID: UUID, error: String,
+                                 at date: Date = Date()) throws -> Bool {
+        try requireWritable()
+        guard activeCollectorRuns[id] == runID else { return false }
+        activeCollectorRuns.removeValue(forKey: id)
+        guard var collector = collectors[id], collector.state == .active else { return false }
+        collector.lastError = error
+        collector.nextRunAt = date.addingTimeInterval(collector.intervalSeconds)
+        collectors[id] = collector
+        try persist()
+        return true
     }
 
     public func recordCollectorRun(id: String, success: Bool, error: String?, at date: Date = Date()) throws {

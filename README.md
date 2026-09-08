@@ -150,6 +150,8 @@ taskbeacon collector resume training-log
 taskbeacon collector remove training-log
 ```
 
+Executions are single-flight per collector. If a command runs longer than its interval, TaskBeacon waits for it to finish and schedules the next run one interval later. Pausing, removing, or replacing a collector invalidates any in-flight result and stops its collector subprocess when possible.
+
 Collector commands run under the current user's `/bin/zsh`. They should observe work rather than mutate or restart it. Do not put credentials in progress messages or command text; prefer Keychain, restricted environment variables, or an existing CLI login.
 
 ## Architecture

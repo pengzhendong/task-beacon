@@ -9,9 +9,11 @@ struct TaskBeaconSelfTest {
             try await rejectsStaleObservedTime()
             try await persistsCollectorHealthSeparately()
             try await rejectsInvalidProgress()
+            try await preventsOverlappingCollectorRuns()
+            try await discardsResultsFromReplacedCollectors()
             try await sealsStateDuringUpdateHandoff()
             try await handsOffOnlyItsOwnDaemon()
-            print("TaskBeacon self-test passed (6/6)")
+            print("TaskBeacon self-test passed (8/8)")
         } catch {
             FileHandle.standardError.write(Data("TaskBeacon self-test failed: \(error)\n".utf8))
             exit(1)
@@ -106,6 +108,60 @@ struct TaskBeaconSelfTest {
             rejected = error.localizedDescription.contains("progress")
         }
         try require(rejected, "invalid progress was accepted")
+    }
+
+    private static func preventsOverlappingCollectorRuns() async throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let task = TaskRecord(id: "single-flight-task", provider: "test", hostID: "host", title: "Test")
+        _ = try await store.register(task)
+        _ = try await store.registerCollector(CollectorRecord(
+            id: "single-flight", taskID: task.id, command: "echo '{}'", intervalSeconds: 5
+        ))
+
+        let startedAt = Date()
+        let firstRun = try await store.markCollectorStarted(id: "single-flight", at: startedAt)
+        try require(firstRun != nil, "first collector run did not start")
+        let dueWhileRunning = await store.dueCollectors(at: startedAt.addingTimeInterval(60))
+        try require(dueWhileRunning.isEmpty, "collector became due while its previous run was active")
+        let overlappingRun = try await store.markCollectorStarted(
+            id: "single-flight", at: startedAt.addingTimeInterval(60)
+        )
+        try require(overlappingRun == nil, "overlapping collector run was accepted")
+
+        let finishedAt = startedAt.addingTimeInterval(10)
+        _ = try await store.completeCollectorRun(
+            id: "single-flight", runID: firstRun!, patch: TaskPatch(stage: "done"), at: finishedAt
+        )
+        let tooEarly = await store.dueCollectors(at: finishedAt.addingTimeInterval(4))
+        let nextDue = await store.dueCollectors(at: finishedAt.addingTimeInterval(5))
+        try require(tooEarly.isEmpty, "collector interval was measured from start instead of completion")
+        try require(nextDue.map(\.id) == ["single-flight"], "collector was not rescheduled after completion")
+    }
+
+    private static func discardsResultsFromReplacedCollectors() async throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let task = TaskRecord(id: "replacement-task", provider: "test", hostID: "host", title: "Test")
+        _ = try await store.register(task)
+        _ = try await store.registerCollector(CollectorRecord(
+            id: "replace-me", taskID: task.id, command: "echo old"
+        ))
+        let oldRun = try await store.markCollectorStarted(id: "replace-me")
+        try require(oldRun != nil, "old collector run did not start")
+
+        _ = try await store.registerCollector(CollectorRecord(
+            id: "replace-me", taskID: task.id, command: "echo new"
+        ))
+        let accepted = try await store.completeCollectorRun(
+            id: "replace-me", runID: oldRun!, patch: TaskPatch(stage: "stale")
+        )
+        try require(!accepted, "replaced collector result was accepted")
+        let restoredTask = await store.listTasks().first
+        let replacement = await store.listCollectors().first
+        try require(restoredTask?.stage == nil, "replaced collector changed the task")
+        try require(replacement?.command == "echo new" && replacement?.lastSuccessAt == nil,
+                    "replaced collector changed the replacement health")
     }
 
     private static func sealsStateDuringUpdateHandoff() async throws {

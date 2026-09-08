@@ -182,15 +182,19 @@ struct TaskBeaconDaemon {
                 return WireResponse(ok: true, snapshot: await store.snapshot())
             case "collector.register":
                 guard let collector = request.collector else { throw TaskBeaconError.invalid("collector is required") }
+                collectorProcesses.stop(collectorID: collector.id)
                 return WireResponse(ok: true, collector: try await store.registerCollector(collector))
             case "collector.state":
                 guard let id = request.collectorID, let state = request.collectorState else {
                     throw TaskBeaconError.invalid("collector_id and state are required")
                 }
-                return WireResponse(ok: true, collector: try await store.setCollectorState(id: id, state: state))
+                let collector = try await store.setCollectorState(id: id, state: state)
+                if state == .paused { collectorProcesses.stop(collectorID: id) }
+                return WireResponse(ok: true, collector: collector)
             case "collector.remove":
                 guard let id = request.collectorID else { throw TaskBeaconError.invalid("collector_id is required") }
                 try await store.removeCollector(id: id)
+                collectorProcesses.stop(collectorID: id)
                 return WireResponse(ok: true)
             case "collector.list":
                 return WireResponse(ok: true, collectors: await store.listCollectors())
@@ -206,36 +210,37 @@ struct TaskBeaconDaemon {
         while !Task.isCancelled {
             let due = await store.dueCollectors()
             for collector in due {
-                do { try await store.markCollectorStarted(id: collector.id) }
-                catch { continue }
-                Task { await execute(collector: collector, store: store) }
+                do {
+                    guard let runID = try await store.markCollectorStarted(id: collector.id) else { continue }
+                    Task { await execute(collector: collector, runID: runID, store: store) }
+                } catch {
+                    continue
+                }
             }
             try? await Task.sleep(for: .seconds(1))
         }
     }
 
-    private static func execute(collector: CollectorRecord, store: TaskStore) async {
+    private static func execute(collector: CollectorRecord, runID: UUID, store: TaskStore) async {
+        guard await store.isCollectorRunCurrent(id: collector.id, runID: runID) else { return }
         do {
             let data = try await run(command: collector.command,
                                      workingDirectory: collector.workingDirectory,
-                                     timeout: collector.timeoutSeconds)
+                                     timeout: collector.timeoutSeconds,
+                                     collectorID: collector.id)
             let output = try JSONCoding.decoder().decode(CollectorOutput.self, from: data)
             let status: TaskStatus? = output.done == true ? .completed : output.status
             let patch = TaskPatch(status: status, stage: output.stage, message: output.message,
                                   progress: output.progress, result: output.result, target: output.target)
-            _ = try await store.update(taskID: collector.taskID, eventID: UUID().uuidString,
-                                       sequence: nil, observedAt: Date(), source: "collector:\(collector.id)", patch: patch)
-            try await store.recordCollectorRun(id: collector.id, success: true, error: nil)
-            if status?.isTerminal == true {
-                _ = try? await store.setCollectorState(id: collector.id, state: .paused)
-            }
+            _ = try await store.completeCollectorRun(id: collector.id, runID: runID, patch: patch)
         } catch {
-            try? await store.recordCollectorRun(id: collector.id, success: false,
-                                                error: error.localizedDescription)
+            try? await store.failCollectorRun(id: collector.id, runID: runID,
+                                              error: error.localizedDescription)
         }
     }
 
-    private static func run(command: String, workingDirectory: String?, timeout: Double) async throws -> Data {
+    private static func run(command: String, workingDirectory: String?, timeout: Double,
+                            collectorID: String) async throws -> Data {
         try await Task.detached {
             let process = Process()
             let output = Pipe()
@@ -247,7 +252,7 @@ struct TaskBeaconDaemon {
             if let workingDirectory {
                 process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
             }
-            try collectorProcesses.start(process)
+            try collectorProcesses.start(process, collectorID: collectorID)
             defer { collectorProcesses.finished(process) }
             let deadline = Date().addingTimeInterval(timeout)
             while process.isRunning && Date() < deadline && !collectorProcesses.isStopping {
@@ -272,8 +277,13 @@ struct TaskBeaconDaemon {
 
 /// Tracks only subprocesses launched by this daemon; it never searches for or kills business tasks.
 private final class CollectorProcesses: @unchecked Sendable {
+    private struct Entry {
+        let collectorID: String
+        let process: Process
+    }
+
     private let lock = NSLock()
-    private var processes: [ObjectIdentifier: Process] = [:]
+    private var processes: [ObjectIdentifier: Entry] = [:]
     private var stopping = false
 
     var isStopping: Bool {
@@ -282,12 +292,12 @@ private final class CollectorProcesses: @unchecked Sendable {
         return stopping
     }
 
-    func start(_ process: Process) throws {
+    func start(_ process: Process, collectorID: String) throws {
         lock.lock()
         defer { lock.unlock() }
         guard !stopping else { throw TaskBeaconError.connection("service is preparing for an update") }
         try process.run()
-        processes[ObjectIdentifier(process)] = process
+        processes[ObjectIdentifier(process)] = Entry(collectorID: collectorID, process: process)
     }
 
     func finished(_ process: Process) {
@@ -296,10 +306,19 @@ private final class CollectorProcesses: @unchecked Sendable {
         processes.removeValue(forKey: ObjectIdentifier(process))
     }
 
+    func stop(collectorID: String) {
+        lock.lock()
+        let running = processes.values
+            .filter { $0.collectorID == collectorID }
+            .map(\.process)
+        lock.unlock()
+        for process in running where process.isRunning { process.terminate() }
+    }
+
     func stopForUpdate() {
         lock.lock()
         stopping = true
-        let running = Array(processes.values)
+        let running = processes.values.map(\.process)
         lock.unlock()
         for process in running where process.isRunning { process.terminate() }
         let deadline = Date().addingTimeInterval(1)
