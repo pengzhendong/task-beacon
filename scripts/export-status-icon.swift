@@ -33,7 +33,7 @@ context.setFillColor(CGColor(gray: 1, alpha: 1))
 
 // Task/window boundary.
 context.setLineWidth(44)
-context.addPath(CGPath(roundedRect: CGRect(x: 126, y: 100, width: 772, height: 824),
+context.addPath(CGPath(roundedRect: CGRect(x: 126, y: 126, width: 772, height: 772),
                        cornerWidth: 128, cornerHeight: 128, transform: nil))
 context.strokePath()
 
@@ -41,18 +41,18 @@ context.strokePath()
 context.setLineWidth(64)
 context.setLineCap(.round)
 context.setLineJoin(.round)
-context.move(to: CGPoint(x: 314, y: 650))
-context.addLine(to: CGPoint(x: 446, y: 518))
-context.addLine(to: CGPoint(x: 314, y: 386))
+context.move(to: CGPoint(x: 314, y: 664))
+context.addLine(to: CGPoint(x: 442, y: 536))
+context.addLine(to: CGPoint(x: 314, y: 408))
 context.strokePath()
 
 // Complete progress-track boundary plus a solid half-complete fill.
 context.setLineWidth(36)
-context.addPath(CGPath(roundedRect: CGRect(x: 222, y: 190, width: 580, height: 132),
-                       cornerWidth: 66, cornerHeight: 66, transform: nil))
+context.addPath(CGPath(roundedRect: CGRect(x: 222, y: 190, width: 580, height: 120),
+                       cornerWidth: 60, cornerHeight: 60, transform: nil))
 context.strokePath()
-context.addPath(CGPath(roundedRect: CGRect(x: 248, y: 216, width: 264, height: 80),
-                       cornerWidth: 40, cornerHeight: 40, transform: nil))
+context.addPath(CGPath(roundedRect: CGRect(x: 248, y: 214, width: 264, height: 72),
+                       cornerWidth: 36, cornerHeight: 36, transform: nil))
 context.fillPath()
 
 guard let image = context.makeImage(),
