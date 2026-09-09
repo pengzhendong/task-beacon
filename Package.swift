@@ -10,7 +10,6 @@ let package = Package(
         .executable(name: "taskbeacon", targets: ["taskbeacon"]),
         .executable(name: "taskbeacon-mcp", targets: ["taskbeacon-mcp"]),
         .executable(name: "TaskBeaconMenu", targets: ["TaskBeaconApp"]),
-        .executable(name: "taskbeacon-selftest", targets: ["TaskBeaconCoreTests"]),
     ],
     targets: [
         .binaryTarget(
@@ -29,7 +28,6 @@ let package = Package(
                 .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"]),
             ]
         ),
-        .executableTarget(name: "TaskBeaconCoreTests", dependencies: ["TaskBeaconCore"],
-                          path: "Tests/TaskBeaconCoreTests"),
+        .testTarget(name: "TaskBeaconCoreTests", dependencies: ["TaskBeaconCore", "taskbeacond"]),
     ]
 )

@@ -7,7 +7,7 @@ giving task states consistent light- and dark-mode contrast.
 
 | Role | Light | Dark | Radix token |
 | --- | --- | --- | --- |
-| Active foreground | `#5F6563` | `#ADB5B2` | Sage 11 |
+| Active foreground | `#2A7E3B` | `#71D083` | Grass 11 |
 | Progress fill | `#94CE9A` | `#53B365` | Grass 7 / Grass 10 |
 | Waiting | `#AB6400` | `#FFCA16` | Amber 11 |
 | Failed | `#D13415` | `#FF977D` | Tomato 11 |

@@ -98,6 +98,9 @@ struct TaskBeaconCLI {
             guard let id = options.positionals.first else { throw TaskBeaconError.invalid("collector id is required") }
             return try client.send(WireRequest(action: "collector.state", collectorID: id,
                                                collectorState: subcommand == "pause" ? .paused : .active))
+        case "run":
+            guard let id = options.positionals.first else { throw TaskBeaconError.invalid("collector id is required") }
+            return try client.send(WireRequest(action: "collector.run", collectorID: id))
         case "remove":
             guard let id = options.positionals.first else { throw TaskBeaconError.invalid("collector id is required") }
             return try client.send(WireRequest(action: "collector.remove", collectorID: id))
@@ -216,7 +219,7 @@ struct TaskBeaconCLI {
           taskbeacon list [--json]
           taskbeacon snapshot
           taskbeacon collector add --task TASK_ID --command COMMAND [--interval SEC] [--timeout SEC]
-          taskbeacon collector list|pause|resume|remove [COLLECTOR_ID]
+          taskbeacon collector list|run|pause|resume|remove [COLLECTOR_ID]
         """)
     }
 }
