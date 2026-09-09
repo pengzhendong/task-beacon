@@ -85,9 +85,12 @@ struct TaskBeaconCLI {
         case "add":
             guard let taskID = options.value("--task") else { throw TaskBeaconError.invalid("--task is required") }
             guard let command = options.value("--command") else { throw TaskBeaconError.invalid("--command is required") }
+            let workingDirectory = options.value("--cwd")
             let collector = CollectorRecord(
                 id: options.value("--id") ?? UUID().uuidString,
-                taskID: taskID, command: command, workingDirectory: options.value("--cwd"),
+                taskID: taskID,
+                command: CollectorCommand.normalized(command, workingDirectory: workingDirectory),
+                workingDirectory: workingDirectory,
                 intervalSeconds: options.double("--interval") ?? 30,
                 timeoutSeconds: options.double("--timeout") ?? 10
             )

@@ -152,6 +152,11 @@ taskbeacon collector add \
   --command './scripts/read-progress.sh'
 ```
 
+`--command` is evaluated by `/bin/zsh`. When its value is exactly an existing
+script path, TaskBeacon shell-quotes it automatically, so literal paths that
+contain spaces work without a wrapper. Commands that include arguments, pipes,
+or redirects remain shell source and must use normal shell quoting.
+
 Manage collectors with:
 
 ```bash
@@ -166,6 +171,11 @@ The menu shows the current-stage duration, recent activity, and the next collect
 also run its collector immediately; long status messages stay compact until expanded.
 
 Executions are single-flight per collector. If a command runs longer than its interval, TaskBeacon waits for it to finish and schedules the next run one interval later. Pausing, removing, or replacing a collector invalidates any in-flight result and stops its collector subprocess when possible.
+
+Collectors do not need their own lock solely to prevent overlapping polls. If a
+collector coordinates through an external lock for another reason, make that
+lock recoverable: a timeout can terminate the shell before cleanup traps run,
+leaving a plain lock file or directory stale.
 
 Collector commands run under the current user's `/bin/zsh`. They should observe work rather than mutate or restart it. Do not put credentials in progress messages or command text; prefer Keychain, restricted environment variables, or an existing CLI login.
 
