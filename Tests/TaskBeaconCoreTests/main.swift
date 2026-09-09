@@ -1,29 +1,9 @@
 import Foundation
 import TaskBeaconCore
+import XCTest
 
-@main
-struct TaskBeaconSelfTest {
-    static func main() async {
-        do {
-            try await deduplicatesEventsAndRejectsOldSequence()
-            try await rejectsStaleObservedTime()
-            try await persistsCollectorHealthSeparately()
-            try await rejectsInvalidProgress()
-            try await preventsOverlappingCollectorRuns()
-            try await discardsResultsFromReplacedCollectors()
-            try await keepsCurrentRunWhenReplacementIsInvalid()
-            try await rollsBackCollectorClaimWhenPersistenceFails()
-            try await forgetsOnlyTrackingData()
-            try await sealsStateDuringUpdateHandoff()
-            try await handsOffOnlyItsOwnDaemon()
-            print("TaskBeacon self-test passed (11/11)")
-        } catch {
-            FileHandle.standardError.write(Data("TaskBeacon self-test failed: \(error)\n".utf8))
-            exit(1)
-        }
-    }
-
-    private static func rejectsStaleObservedTime() async throws {
+final class TaskBeaconCoreTests: XCTestCase {
+    func testRejectsStaleObservedTime() async throws {
         let (store, directory) = makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
         let task = TaskRecord(id: "stale-task", provider: "test", hostID: "host", title: "Test")
@@ -37,17 +17,82 @@ struct TaskBeaconSelfTest {
         try require(result.0.stage == nil, "stale event changed task state")
     }
 
-    private static func makeStore() -> (TaskStore, URL) {
+    private func makeStore() -> (TaskStore, URL) {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("taskbeacon-tests-\(UUID().uuidString)", isDirectory: true)
         return (TaskStore(fileURL: directory.appendingPathComponent("state.json")), directory)
     }
 
-    private static func require(_ condition: @autoclosure () throws -> Bool, _ message: String) throws {
+    private func require(_ condition: @autoclosure () throws -> Bool, _ message: String) throws {
         if try !condition() { throw TaskBeaconError.invalid(message) }
     }
 
-    private static func deduplicatesEventsAndRejectsOldSequence() async throws {
+    func testCurrentPhaseDurationStartsAtLatestStageTransition() async throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let start = Date(timeIntervalSince1970: 1_000)
+        let task = TaskRecord(
+            id: "phase-duration", provider: "test", hostID: "host", title: "Running",
+            stage: "Ray", createdAt: start, updatedAt: start
+        )
+        _ = try await store.register(task)
+        _ = try await store.update(
+            taskID: task.id, eventID: "phase-ray", sequence: 1,
+            observedAt: Date(timeIntervalSince1970: 1_050), source: "test",
+            patch: TaskPatch(stage: "Ray")
+        )
+        _ = try await store.update(
+            taskID: task.id, eventID: "phase-maxcompute", sequence: 2,
+            observedAt: Date(timeIntervalSince1970: 1_100), source: "test",
+            patch: TaskPatch(stage: "MaxCompute")
+        )
+        let snapshot = await store.snapshot()
+        let current = try XCTUnwrap(snapshot.tasks.first)
+        try require(
+            current.currentPhaseDuration(
+                in: snapshot.events, at: Date(timeIntervalSince1970: 1_125)
+            ) == 25,
+            "phase duration did not reset when the stage changed"
+        )
+    }
+
+    func testEstimatesRemainingTimeFromCurrentPhaseProgress() async throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let start = Date(timeIntervalSince1970: 1_000)
+        let task = TaskRecord(
+            id: "eta", provider: "test", hostID: "host", title: "ETA",
+            stage: "build", progress: WorkProgress(completed: 10, total: 100),
+            createdAt: start, updatedAt: start
+        )
+        _ = try await store.register(task)
+        _ = try await store.update(
+            taskID: task.id, eventID: "eta-1", sequence: 1,
+            observedAt: Date(timeIntervalSince1970: 1_050), source: "test",
+            patch: TaskPatch(stage: "build", progress: WorkProgress(completed: 20, total: 100))
+        )
+        _ = try await store.update(
+            taskID: task.id, eventID: "eta-2", sequence: 2,
+            observedAt: Date(timeIntervalSince1970: 1_100), source: "test",
+            patch: TaskPatch(stage: "build", progress: WorkProgress(completed: 40, total: 100))
+        )
+        let snapshot = await store.snapshot()
+        let current = try XCTUnwrap(snapshot.tasks.first)
+        try require(
+            current.estimatedRemainingDuration(
+                in: snapshot.events, at: Date(timeIntervalSince1970: 1_100)
+            ) == 150,
+            "remaining time did not use the current phase rate"
+        )
+    }
+
+    func testPreservesExplicitFailureWhenCollectorIsDone() throws {
+        let data = Data(#"{"done":true,"status":"failed"}"#.utf8)
+        let output = try JSONCoding.decoder().decode(CollectorOutput.self, from: data)
+        try require(output.resolvedStatus == .failed, "done overrode the collector's explicit failure")
+    }
+
+    func testDeduplicatesEventsAndRejectsOldSequence() async throws {
         let (store, directory) = makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
         let task = TaskRecord(id: "task-1", provider: "test", hostID: "host", title: "Test")
@@ -76,7 +121,7 @@ struct TaskBeaconSelfTest {
         try require(tasks.first?.progress == WorkProgress(completed: 2, total: 10), "progress was not saved")
     }
 
-    private static func persistsCollectorHealthSeparately() async throws {
+    func testPersistsCollectorHealthSeparately() async throws {
         let (store, directory) = makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
         let task = TaskRecord(id: "task-2", provider: "test", hostID: "host", title: "Long job")
@@ -95,7 +140,7 @@ struct TaskBeaconSelfTest {
         try require(restoredCollector?.lastError == "timeout", "collector health was not restored")
     }
 
-    private static func rejectsInvalidProgress() async throws {
+    func testRejectsInvalidProgress() async throws {
         let (store, directory) = makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
         let task = TaskRecord(id: "task-3", provider: "test", hostID: "host", title: "Test")
@@ -113,7 +158,7 @@ struct TaskBeaconSelfTest {
         try require(rejected, "invalid progress was accepted")
     }
 
-    private static func preventsOverlappingCollectorRuns() async throws {
+    func testPreventsOverlappingCollectorRuns() async throws {
         let (store, directory) = makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
         let task = TaskRecord(id: "single-flight-task", provider: "test", hostID: "host", title: "Test")
@@ -142,7 +187,27 @@ struct TaskBeaconSelfTest {
         try require(nextDue.map(\.id) == ["single-flight"], "collector was not rescheduled after completion")
     }
 
-    private static func discardsResultsFromReplacedCollectors() async throws {
+    func testRequestsCollectorRunImmediately() async throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let task = TaskRecord(id: "manual-run-task", provider: "test", hostID: "host", title: "Test")
+        _ = try await store.register(task)
+        let future = Date(timeIntervalSince1970: 2_000)
+        _ = try await store.registerCollector(CollectorRecord(
+            id: "manual-run", taskID: task.id, command: "echo '{}'", intervalSeconds: 60,
+            nextRunAt: future
+        ))
+        let dueBeforeRequest = await store.dueCollectors(at: Date(timeIntervalSince1970: 1_000))
+        try require(dueBeforeRequest.isEmpty, "collector was due before a manual request")
+
+        let requestedAt = Date(timeIntervalSince1970: 1_000)
+        let collector = try await store.requestCollectorRun(id: "manual-run", at: requestedAt)
+        try require(collector.nextRunAt == requestedAt, "manual request did not reschedule immediately")
+        let dueAfterRequest = await store.dueCollectors(at: requestedAt)
+        try require(dueAfterRequest.map(\.id) == ["manual-run"], "manually requested collector was not due")
+    }
+
+    func testDiscardsResultsFromReplacedCollectors() async throws {
         let (store, directory) = makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
         let task = TaskRecord(id: "replacement-task", provider: "test", hostID: "host", title: "Test")
@@ -173,7 +238,7 @@ struct TaskBeaconSelfTest {
         try require(claimed?.command == "echo new", "scheduler claimed a stale collector configuration")
     }
 
-    private static func keepsCurrentRunWhenReplacementIsInvalid() async throws {
+    func testKeepsCurrentRunWhenReplacementIsInvalid() async throws {
         let (store, directory) = makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
         let task = TaskRecord(id: "invalid-replacement-task", provider: "test", hostID: "host", title: "Test")
@@ -202,7 +267,7 @@ struct TaskBeaconSelfTest {
         )
     }
 
-    private static func rollsBackCollectorClaimWhenPersistenceFails() async throws {
+    func testRollsBackCollectorClaimWhenPersistenceFails() async throws {
         let (store, directory) = makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
         let task = TaskRecord(id: "claim-rollback-task", provider: "test", hostID: "host", title: "Test")
@@ -232,7 +297,7 @@ struct TaskBeaconSelfTest {
         try require(retried != nil, "failed persistence left the collector permanently claimed")
     }
 
-    private static func forgetsOnlyTrackingData() async throws {
+    func testForgetsOnlyTrackingData() async throws {
         let (store, directory) = makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
         let task = TaskRecord(id: "forgotten-task", provider: "test", hostID: "host", title: "Keep running")
@@ -255,7 +320,7 @@ struct TaskBeaconSelfTest {
         try require(snapshot.events.isEmpty, "forgotten task's event history remained stored")
     }
 
-    private static func sealsStateDuringUpdateHandoff() async throws {
+    func testSealsStateDuringUpdateHandoff() async throws {
         let (store, directory) = makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
         let task = TaskRecord(id: "handoff-task", provider: "test", hostID: "host", title: "Still working")
@@ -282,12 +347,14 @@ struct TaskBeaconSelfTest {
                                       observedAt: Date(), source: "test", patch: TaskPatch(stage: "resumed"))
     }
 
-    private static func handsOffOnlyItsOwnDaemon() async throws {
-        let daemonURL = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
-            .deletingLastPathComponent().appendingPathComponent("taskbeacond")
-        guard FileManager.default.isExecutableFile(atPath: daemonURL.path) else {
-            throw TaskBeaconError.invalid("run swift build before self-test to build the daemon integration fixture")
-        }
+    func testHandsOffOnlyItsOwnDaemon() async throws {
+        let buildDirectory = Bundle(for: TaskBeaconCoreTests.self).bundleURL
+            .deletingLastPathComponent()
+        let daemonURL = buildDirectory.appendingPathComponent("taskbeacond")
+        try require(
+            FileManager.default.isExecutableFile(atPath: daemonURL.path),
+            "swift test did not build the daemon integration fixture"
+        )
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("taskbeacon-handoff-\(UUID().uuidString)", isDirectory: true)
         let socketPath = "/tmp/tb-handoff-\(UUID().uuidString).sock"

@@ -110,6 +110,11 @@ struct TaskBeaconMCP {
                 timeoutSeconds: arguments.double("timeout_seconds") ?? 10
             )
             response = try client.send(WireRequest(action: "collector.register", collector: collector))
+        case "collector_run":
+            guard let collectorID = arguments.string("collector_id") else {
+                throw TaskBeaconError.invalid("collector_id is required")
+            }
+            response = try client.send(WireRequest(action: "collector.run", collectorID: collectorID))
         default:
             throw TaskBeaconError.invalid("unknown tool: \(name)")
         }
@@ -148,6 +153,9 @@ struct TaskBeaconMCP {
             "collector_id": string(), "task_id": string(), "command": string(),
             "working_directory": string(), "interval_seconds": number(), "timeout_seconds": number()
         ], required: ["task_id", "command"]),
+        tool("collector_run", "Run a registered collector immediately", properties: [
+            "collector_id": string()
+        ], required: ["collector_id"]),
     ] }
 
     private static func tool(_ name: String, _ description: String,

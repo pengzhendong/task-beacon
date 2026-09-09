@@ -212,6 +212,26 @@ public actor TaskStore {
         collectors.values.sorted { $0.id < $1.id }
     }
 
+    public func requestCollectorRun(id: String, at date: Date = Date()) throws -> CollectorRecord {
+        try requireWritable()
+        guard var collector = collectors[id] else {
+            throw TaskBeaconError.notFound("collector not found: \(id)")
+        }
+        guard collector.state == .active else {
+            throw TaskBeaconError.invalid("collector is paused: \(id)")
+        }
+        let previousCollector = collector
+        collector.nextRunAt = date
+        collectors[id] = collector
+        do {
+            try persist()
+        } catch {
+            collectors[id] = previousCollector
+            throw error
+        }
+        return collector
+    }
+
     public func dueCollectors(at date: Date = Date()) -> [CollectorRecord] {
         guard !preparingForUpdate else { return [] }
         return collectors.values.filter {

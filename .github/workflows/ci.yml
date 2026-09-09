@@ -17,7 +17,7 @@ jobs:
       - name: Build
         run: swift build
       - name: Test
-        run: swift run taskbeacon-selftest
+        run: swift test
       - name: Package app
         run: ./scripts/package-app.sh
       - name: Verify app bundle

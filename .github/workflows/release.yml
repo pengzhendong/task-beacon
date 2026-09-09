@@ -55,7 +55,7 @@ jobs:
       - name: Build and package
         run: |
           swift build
-          swift run taskbeacon-selftest
+          swift test
           version="${GITHUB_REF_NAME#v}"
           VERSION="$version" BUILD_NUMBER="$GITHUB_RUN_NUMBER" ./scripts/package-app.sh
           codesign --verify --deep --strict dist/TaskBeacon.app

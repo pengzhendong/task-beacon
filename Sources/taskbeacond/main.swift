@@ -205,6 +205,9 @@ struct TaskBeaconDaemon {
                 return WireResponse(ok: true)
             case "collector.list":
                 return WireResponse(ok: true, collectors: await store.listCollectors())
+            case "collector.run":
+                guard let id = request.collectorID else { throw TaskBeaconError.invalid("collector_id is required") }
+                return WireResponse(ok: true, collector: try await store.requestCollectorRun(id: id))
             default:
                 throw TaskBeaconError.invalid("unknown action: \(request.action)")
             }
@@ -248,8 +251,7 @@ struct TaskBeaconDaemon {
                                      collectorID: collector.id,
                                      runID: runID)
             let output = try JSONCoding.decoder().decode(CollectorOutput.self, from: data)
-            let status: TaskStatus? = output.done == true ? .completed : output.status
-            let patch = TaskPatch(status: status, stage: output.stage, message: output.message,
+            let patch = TaskPatch(status: output.resolvedStatus, stage: output.stage, message: output.message,
                                   progress: output.progress, result: output.result, target: output.target)
             _ = try await store.completeCollectorRun(id: collector.id, runID: runID, patch: patch)
         } catch {

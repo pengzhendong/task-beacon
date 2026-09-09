@@ -72,6 +72,43 @@ public struct TaskRecord: Codable, Identifiable, Equatable, Sendable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
+
+    public func currentPhaseStartedAt(in events: [TaskEvent]) -> Date {
+        guard let currentStage = stage else { return createdAt }
+        var observedStage: String?
+        var startedAt = createdAt
+        for event in events
+            .filter({ $0.taskID == id && $0.observedAt >= createdAt })
+            .sorted(by: { $0.observedAt < $1.observedAt }) {
+            guard let eventStage = event.patch.stage, eventStage != observedStage else { continue }
+            observedStage = eventStage
+            if eventStage == currentStage { startedAt = event.observedAt }
+        }
+        return startedAt
+    }
+
+    public func currentPhaseDuration(in events: [TaskEvent], at now: Date = Date()) -> TimeInterval {
+        let end = status.isTerminal ? updatedAt : now
+        return max(0, end.timeIntervalSince(currentPhaseStartedAt(in: events)))
+    }
+
+    public func estimatedRemainingDuration(in events: [TaskEvent], at now: Date = Date()) -> TimeInterval? {
+        guard !status.isTerminal, let current = progress, current.total > 0 else { return nil }
+        let remaining = current.total - current.completed
+        guard remaining > 0 else { return 0 }
+        let phaseStartedAt = currentPhaseStartedAt(in: events)
+        let samples = events
+            .filter {
+                $0.taskID == id && $0.observedAt >= phaseStartedAt &&
+                    $0.patch.progress?.total == current.total
+            }
+            .sorted(by: { $0.observedAt < $1.observedAt })
+        guard let first = samples.first, let baseline = first.patch.progress else { return nil }
+        let completedDelta = current.completed - baseline.completed
+        let elapsed = now.timeIntervalSince(first.observedAt)
+        guard completedDelta > 0, elapsed > 0 else { return nil }
+        return remaining / (completedDelta / elapsed)
+    }
 }
 
 public struct TaskPatch: Codable, Equatable, Sendable {
@@ -143,6 +180,10 @@ public struct CollectorOutput: Codable, Sendable {
     public var result: String?
     public var target: String?
     public var done: Bool?
+
+    public var resolvedStatus: TaskStatus? {
+        status ?? (done == true ? .completed : nil)
+    }
 }
 
 public struct StateSnapshot: Codable, Sendable {

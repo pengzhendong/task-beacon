@@ -3,8 +3,8 @@
 build:
 	swift build
 
-test: build
-	swift run taskbeacon-selftest
+test:
+	swift test
 
 app:
 	./scripts/package-app.sh

@@ -119,6 +119,7 @@ Codex CLI, the desktop app, and the IDE extension share this MCP configuration. 
 - `task_cancel`
 - `task_list`
 - `collector_register`
+- `collector_run`
 
 Every update can include an `event_id` for deduplication. When `sequence` is present, an older sequence cannot overwrite a newer state. Events without a sequence use `observed_at` for the same out-of-order protection.
 
@@ -155,10 +156,14 @@ Manage collectors with:
 
 ```bash
 taskbeacon collector list
+taskbeacon collector run training-log
 taskbeacon collector pause training-log
 taskbeacon collector resume training-log
 taskbeacon collector remove training-log
 ```
+
+The menu shows the current-stage duration, recent activity, and the next collector refresh. Each task card can
+also run its collector immediately; long status messages stay compact until expanded.
 
 Executions are single-flight per collector. If a command runs longer than its interval, TaskBeacon waits for it to finish and schedules the next run one interval later. Pausing, removing, or replacing a collector invalidates any in-flight result and stops its collector subprocess when possible.
 
@@ -182,7 +187,7 @@ TaskBeacon requires macOS 13+ and Swift 6. A full Xcode installation is not requ
 
 ```bash
 swift build
-swift run taskbeacon-selftest
+swift test
 make app
 ```
 
