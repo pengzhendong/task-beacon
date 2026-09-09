@@ -3,39 +3,17 @@ import AppKit
 
 @main
 struct TaskBeaconMenuApp: App {
-    @StateObject private var model: BeaconModel
-    @StateObject private var updater: UpdateController
-    @State private var expandedTaskID: String?
-
-    init() {
-        CommandLineInstaller.installAutomatically()
-        let model = BeaconModel()
-        _model = StateObject(wrappedValue: model)
-        _updater = StateObject(wrappedValue: UpdateController(model: model))
-    }
+    @NSApplicationDelegateAdaptor(TaskBeaconAppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra {
-            BeaconMenu(model: model, updater: updater, expandedTaskID: $expandedTaskID)
-                .frame(width: 390)
-                .animation(.easeInOut(duration: 0.18), value: model.tasks.count)
-                .animation(.easeInOut(duration: 0.18), value: expandedTaskID)
-        } label: {
-            Image(nsImage: MenuBarIcon.image)
-                .renderingMode(MenuBarIcon.image.isTemplate ? .template : .original)
-                .interpolation(.high)
-                .frame(width: 22, height: 22)
-                .accessibilityLabel("TaskBeacon")
-                .accessibilityValue("\(model.activeCount) 个进行中，\(model.attentionCount) 个需处理")
-                .help("TaskBeacon · \(model.activeCount) 个进行中 · \(model.attentionCount) 个需处理")
+        Settings {
+            EmptyView()
         }
-        .menuBarExtraStyle(.window)
     }
-
 }
 
 @MainActor
-private enum MenuBarIcon {
+enum MenuBarIcon {
     static let image: NSImage = {
         let icon: NSImage
         if let url = Bundle.main.url(forResource: "TaskBeaconStatus", withExtension: "png"),
