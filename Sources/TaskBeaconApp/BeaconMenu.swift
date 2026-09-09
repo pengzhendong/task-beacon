@@ -247,10 +247,10 @@ struct TaskRow: View {
                 } label: {
                     Image(systemName: confirmingForget ? "xmark" : "ellipsis")
                         .font(.caption2.weight(.semibold))
-                        .frame(width: 16, height: 16)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .fixedSize()
                 .help("更多操作")
             }
             if task.stage != nil || task.message != nil {
