@@ -279,10 +279,21 @@ struct TaskRow: View {
                     .foregroundStyle(BeaconPalette.amber)
                     .lineLimit(1)
             }
+        }
+        .padding(11)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.76),
+                    in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.035), radius: 2, y: 1)
+        .overlay {
             if confirmingForget {
-                Divider()
                 HStack(spacing: 8) {
-                    Label("不会终止实际任务", systemImage: "eye.slash")
+                    Label("停止跟踪？", systemImage: "eye.slash")
+                        .font(.caption.weight(.medium))
+                    Text("不会终止实际任务")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -294,17 +305,17 @@ struct TaskRow: View {
                     Button("停止跟踪", role: .destructive, action: onForget)
                 }
                 .controlSize(.small)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .padding(11)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(nsColor: .controlBackgroundColor),
+                            in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+                }
+                .transition(.opacity)
             }
         }
-        .padding(11)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.76),
-                    in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.035), radius: 2, y: 1)
     }
 
     private var statusText: String {
