@@ -5,6 +5,7 @@ import AppKit
 struct TaskBeaconMenuApp: App {
     @StateObject private var model: BeaconModel
     @StateObject private var updater: UpdateController
+    @State private var expandedTaskID: String?
 
     init() {
         CommandLineInstaller.installAutomatically()
@@ -15,9 +16,10 @@ struct TaskBeaconMenuApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            BeaconMenu(model: model, updater: updater)
+            BeaconMenu(model: model, updater: updater, expandedTaskID: $expandedTaskID)
                 .frame(width: 390, height: panelHeight)
                 .animation(.easeInOut(duration: 0.18), value: model.tasks.count)
+                .animation(.easeInOut(duration: 0.18), value: expandedTaskID)
         } label: {
             Image(nsImage: MenuBarIcon.image)
                 .renderingMode(MenuBarIcon.image.isTemplate ? .template : .original)
@@ -31,7 +33,8 @@ struct TaskBeaconMenuApp: App {
     }
 
     private var panelHeight: CGFloat {
-        min(500, max(205, 120 + CGFloat(model.tasks.count) * 90))
+        let contentHeight = max(205, 120 + CGFloat(model.tasks.count) * 90)
+        return min(540, contentHeight + (expandedTaskID == nil ? 0 : 40))
     }
 }
 

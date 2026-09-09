@@ -5,6 +5,7 @@ import TaskBeaconCore
 struct BeaconMenu: View {
     @ObservedObject var model: BeaconModel
     @ObservedObject var updater: UpdateController
+    @Binding var expandedTaskID: String?
     @State private var commandLineToolsInstalled = CommandLineInstaller.isInstalled
     @State private var installerNotice: InstallerNotice?
 
@@ -35,6 +36,10 @@ struct BeaconMenu: View {
                                     TaskRow(
                                         task: task,
                                         collector: collector(for: task.id),
+                                        confirmingForget: Binding(
+                                            get: { expandedTaskID == task.id },
+                                            set: { expandedTaskID = $0 ? task.id : nil }
+                                        ),
                                         onForget: { forget(task) }
                                     )
                                 }
@@ -118,6 +123,7 @@ struct BeaconMenu: View {
     }
 
     private func forget(_ task: TaskRecord) {
+        expandedTaskID = nil
         Task {
             if let error = await model.forgetTask(id: task.id) {
                 installerNotice = InstallerNotice(title: "停止跟踪失败", message: error)
@@ -203,8 +209,8 @@ struct EmptyState: View {
 struct TaskRow: View {
     let task: TaskRecord
     let collector: CollectorRecord?
+    @Binding var confirmingForget: Bool
     let onForget: () -> Void
-    @State private var confirmingForget = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -279,21 +285,10 @@ struct TaskRow: View {
                     .foregroundStyle(BeaconPalette.amber)
                     .lineLimit(1)
             }
-        }
-        .padding(11)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.76),
-                    in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.035), radius: 2, y: 1)
-        .overlay {
             if confirmingForget {
+                Divider()
                 HStack(spacing: 8) {
-                    Label("停止跟踪？", systemImage: "eye.slash")
-                        .font(.caption.weight(.medium))
-                    Text("不会终止实际任务")
+                    Label("不会终止实际任务", systemImage: "eye.slash")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -305,17 +300,17 @@ struct TaskRow: View {
                     Button("停止跟踪", role: .destructive, action: onForget)
                 }
                 .controlSize(.small)
-                .padding(11)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(nsColor: .controlBackgroundColor),
-                            in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
-                }
-                .transition(.opacity)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .padding(11)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.76),
+                    in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.035), radius: 2, y: 1)
     }
 
     private var statusText: String {
