@@ -209,7 +209,11 @@ public actor TaskStore {
     }
 
     public func listCollectors() -> [CollectorRecord] {
-        collectors.values.sorted { $0.id < $1.id }
+        collectors.values.map { stored in
+            var collector = stored
+            collector.isRunning = activeCollectorRuns[collector.id] != nil
+            return collector
+        }.sorted { $0.id < $1.id }
     }
 
     public func requestCollectorRun(id: String, at date: Date = Date()) throws -> CollectorRecord {
