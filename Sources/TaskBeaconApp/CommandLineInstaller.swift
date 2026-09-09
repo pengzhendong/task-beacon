@@ -18,17 +18,8 @@ enum CommandLineInstaller {
         do {
             try install()
         } catch {
-            // Keep launching normally. The visible Install CLI action can explain and retry failures.
+            // Keep launching normally; installation failures remain visible in the system log.
             NSLog("TaskBeacon automatic CLI installation: %@", error.localizedDescription)
-        }
-    }
-
-    static var isInstalled: Bool {
-        guard let bundledTools = Bundle.main.resourceURL?
-            .appendingPathComponent("bin", isDirectory: true) else { return false }
-        return toolNames.allSatisfy { name in
-            link(at: directory.appendingPathComponent(name),
-                 pointsTo: bundledTools.appendingPathComponent(name))
         }
     }
 

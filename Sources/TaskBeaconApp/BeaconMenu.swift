@@ -6,7 +6,6 @@ struct BeaconMenu: View {
     @ObservedObject var model: BeaconModel
     @ObservedObject var updater: UpdateController
     @Binding var expandedTaskID: String?
-    @State private var commandLineToolsInstalled = CommandLineInstaller.isInstalled
     @State private var installerNotice: InstallerNotice?
     @State private var taskListContentHeight: CGFloat = 1
 
@@ -113,14 +112,6 @@ struct BeaconMenu: View {
             .buttonStyle(.plain)
             .disabled(updater.isChecking)
             Spacer()
-            Button { installCommandLineTools() } label: {
-                Label(commandLineToolsInstalled ? "CLI 已安装" : "安装 CLI",
-                      systemImage: commandLineToolsInstalled ? "checkmark.circle" : "terminal")
-            }
-            .buttonStyle(.plain)
-            .disabled(commandLineToolsInstalled)
-            .help("安装到 ~/.local/bin，无需管理员密码")
-            Divider().frame(height: 14)
             Button { NSApplication.shared.terminate(nil) } label: {
                 Image(systemName: "power")
             }
@@ -131,19 +122,6 @@ struct BeaconMenu: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .overlay(alignment: .top) { Divider() }
-    }
-
-    private func installCommandLineTools() {
-        do {
-            let directory = try CommandLineInstaller.install()
-            commandLineToolsInstalled = true
-            installerNotice = InstallerNotice(
-                title: "命令行工具已安装",
-                message: "已安装到 \(directory.path)，无需管理员密码。\n\n让 Codex 使用 TaskBeacon：\ncodex mcp add taskbeacon -- \(directory.path)/taskbeacon-mcp"
-            )
-        } catch {
-            installerNotice = InstallerNotice(title: "安装失败", message: error.localizedDescription)
-        }
     }
 
     private func forget(_ task: TaskRecord) {
@@ -317,6 +295,8 @@ struct TaskRow: View {
                         } label: {
                             Image(systemName: messageExpanded ? "chevron.up" : "chevron.down")
                                 .font(.caption2.weight(.semibold))
+                                .frame(width: 28, height: 28)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .help(messageExpanded ? "收起详情" : "展开详情")
