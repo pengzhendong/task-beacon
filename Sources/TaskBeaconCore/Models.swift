@@ -92,10 +92,8 @@ public struct TaskRecord: Codable, Identifiable, Equatable, Sendable {
         return max(0, end.timeIntervalSince(currentPhaseStartedAt(in: events)))
     }
 
-    public func estimatedRemainingDuration(in events: [TaskEvent], at now: Date = Date()) -> TimeInterval? {
-        guard !status.isTerminal, let current = progress, current.total > 0 else { return nil }
-        let remaining = current.total - current.completed
-        guard remaining > 0 else { return 0 }
+    public func estimatedProgressRate(in events: [TaskEvent]) -> Double? {
+        guard let current = progress, current.total > 0 else { return nil }
         let phaseStartedAt = currentPhaseStartedAt(in: events)
         let samples = events
             .filter {
@@ -103,11 +101,22 @@ public struct TaskRecord: Codable, Identifiable, Equatable, Sendable {
                     $0.patch.progress?.total == current.total
             }
             .sorted(by: { $0.observedAt < $1.observedAt })
-        guard let first = samples.first, let baseline = first.patch.progress else { return nil }
-        let completedDelta = current.completed - baseline.completed
-        let elapsed = now.timeIntervalSince(first.observedAt)
+        guard let first = samples.first,
+              let baseline = first.patch.progress,
+              let last = samples.last,
+              let latest = last.patch.progress else { return nil }
+        let completedDelta = latest.completed - baseline.completed
+        let elapsed = last.observedAt.timeIntervalSince(first.observedAt)
         guard completedDelta > 0, elapsed > 0 else { return nil }
-        return remaining / (completedDelta / elapsed)
+        return completedDelta / elapsed
+    }
+
+    public func estimatedRemainingDuration(in events: [TaskEvent], at _: Date = Date()) -> TimeInterval? {
+        guard !status.isTerminal, let current = progress, current.total > 0 else { return nil }
+        let remaining = current.total - current.completed
+        guard remaining > 0 else { return 0 }
+        guard let rate = estimatedProgressRate(in: events) else { return nil }
+        return remaining / rate
     }
 }
 

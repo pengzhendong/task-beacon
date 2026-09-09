@@ -84,6 +84,16 @@ final class TaskBeaconCoreTests: XCTestCase {
             ) == 150,
             "remaining time did not use the current phase rate"
         )
+        try require(
+            current.estimatedRemainingDuration(
+                in: snapshot.events, at: Date(timeIntervalSince1970: 1_125)
+            ) == 150,
+            "remaining time drifted without a new progress sample"
+        )
+        try require(
+            current.estimatedProgressRate(in: snapshot.events) == 0.4,
+            "progress rate did not use the sampled progress delta"
+        )
     }
 
     func testPreservesExplicitFailureWhenCollectorIsDone() throws {

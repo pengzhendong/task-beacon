@@ -6,6 +6,7 @@ struct BeaconMenu: View {
     @ObservedObject var model: BeaconModel
     @ObservedObject var updater: UpdateController
     @Binding var expandedTaskID: String?
+    @Binding var isPinned: Bool
     @State private var installerNotice: InstallerNotice?
     @State private var taskListContentHeight: CGFloat = 1
 
@@ -22,7 +23,7 @@ struct BeaconMenu: View {
                            detail: "通过 CLI 或 MCP 注册任务后会显示在这里")
                     .frame(height: 140)
             } else {
-                ScrollView(.vertical, showsIndicators: taskListContentHeight > maxTaskListHeight) {
+                ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
                         ForEach(groups, id: \.key) { group in
                             VStack(alignment: .leading, spacing: 7) {
@@ -42,6 +43,7 @@ struct BeaconMenu: View {
                                         collector: collector(for: task.id),
                                         phaseStartedAt: task.currentPhaseStartedAt(in: model.events),
                                         estimatedRemaining: task.estimatedRemainingDuration(in: model.events),
+                                        estimatedRate: task.estimatedProgressRate(in: model.events),
                                         isRefreshing: collector(for: task.id).map {
                                             model.refreshingCollectorIDs.contains($0.id)
                                         } ?? false,
@@ -49,7 +51,7 @@ struct BeaconMenu: View {
                                             get: { expandedTaskID == task.id },
                                             set: { expandedTaskID = $0 ? task.id : nil }
                                         ),
-                                        onRefresh: { refresh(task) },
+                                        onRefresh: { await refresh(task) },
                                         onForget: { forget(task) }
                                     )
                                 }
@@ -91,6 +93,14 @@ struct BeaconMenu: View {
                     .foregroundStyle(BeaconPalette.amber)
             }
             Spacer()
+            Button { isPinned.toggle() } label: {
+                Image(systemName: isPinned ? "pin.fill" : "pin")
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(isPinned ? BeaconPalette.sage : Color.primary)
+            .background(Color.primary.opacity(0.055), in: Circle())
+            .help(isPinned ? "取消固定" : "固定窗口")
             Button { Task { await model.refresh() } } label: {
                 Image(systemName: "arrow.clockwise")
                     .frame(width: 26, height: 26)
@@ -133,12 +143,13 @@ struct BeaconMenu: View {
         }
     }
 
-    private func refresh(_ task: TaskRecord) {
-        guard let collector = collector(for: task.id) else { return }
-        Task {
+    private func refresh(_ task: TaskRecord) async {
+        if let collector = collector(for: task.id) {
             if let error = await model.runCollector(id: collector.id) {
                 installerNotice = InstallerNotice(title: "立即刷新失败", message: error)
             }
+        } else {
+            await model.refresh()
         }
     }
 
@@ -230,11 +241,13 @@ struct TaskRow: View {
     let collector: CollectorRecord?
     let phaseStartedAt: Date
     let estimatedRemaining: TimeInterval?
+    let estimatedRate: Double?
     let isRefreshing: Bool
     @Binding var confirmingForget: Bool
-    let onRefresh: () -> Void
+    let onRefresh: () async -> Void
     let onForget: () -> Void
     @State private var messageExpanded = false
+    @State private var isManualRefreshing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -252,7 +265,9 @@ struct TaskRow: View {
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
                     .background(color.opacity(0.12), in: Capsule())
-                if let target = task.target, let url = targetURL(target) {
+                if task.status != .completed,
+                   let target = task.target,
+                   let url = targetURL(target) {
                     Link(destination: url) {
                         Image(systemName: "arrow.up.right")
                             .font(.caption2.weight(.semibold))
@@ -260,18 +275,6 @@ struct TaskRow: View {
                     .buttonStyle(.plain)
                     .help("打开结果")
                 }
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        confirmingForget.toggle()
-                    }
-                } label: {
-                    Image(systemName: confirmingForget ? "xmark" : "ellipsis")
-                        .font(.caption2.weight(.semibold))
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("更多操作")
             }
             if task.stage != nil || task.message != nil {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -310,9 +313,19 @@ struct TaskRow: View {
                         Text(percentText(fraction))
                             .fontWeight(.medium)
                             .fixedSize()
-                        ProgressView(value: fraction)
-                            .progressViewStyle(.linear)
-                            .tint(progressColor)
+                        GeometryReader { geometry in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.primary.opacity(0.10))
+                                Capsule()
+                                    .fill(progressColor)
+                                    .frame(width: geometry.size.width * fraction)
+                            }
+                        }
+                        .frame(height: 5)
+                        .accessibilityElement()
+                        .accessibilityLabel("任务进度")
+                        .accessibilityValue(percentText(fraction))
                         Text(progressText(progress))
                             .fixedSize()
                     }
@@ -338,18 +351,16 @@ struct TaskRow: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Button("取消") {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            confirmingForget = false
-                        }
-                    }
                     Button("停止跟踪", role: .destructive, action: onForget)
                 }
                 .controlSize(.small)
+                .offset(y: -2)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(11)
+        .padding(.horizontal, 11)
+        .padding(.top, 11)
+        .padding(.bottom, 4)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.76),
                     in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         .overlay {
@@ -410,59 +421,115 @@ struct TaskRow: View {
     private func metadataRow(progress: WorkProgress?) -> some View {
         HStack(spacing: 5) {
             if let progress {
-                Text(timingText(progress))
-                    .font(.system(size: 9.5, design: .monospaced))
+                timingSummary(progress)
+                    .font(.system(size: 9.5))
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
                     .layoutPriority(1)
-            } else {
-                Label("本阶段 \(phaseDurationText)", systemImage: "clock")
             }
             Spacer(minLength: 4)
-            if let collector {
-                Text(refreshStatusText(for: collector))
-                    .monospacedDigit()
-                    .fixedSize()
-                    .foregroundStyle(refreshStatusColor(for: collector))
-                    .help(lastSuccessfulUpdateHelp(for: collector))
-                Button(action: onRefresh) {
-                    if isRefreshing {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .frame(width: 12, height: 12)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                    }
+            Text(collector.map { refreshStatusText(for: $0) } ?? lastUpdatedText)
+                .monospacedDigit()
+                .fixedSize()
+                .foregroundStyle(collector.map { refreshStatusColor(for: $0) } ?? Color.secondary)
+                .help(collector.map { lastSuccessfulUpdateHelp(for: $0) } ?? "上次收到进度：\(task.updatedAt.formatted())")
+            Button {
+                Task {
+                    isManualRefreshing = true
+                    await onRefresh()
+                    isManualRefreshing = false
                 }
-                .buttonStyle(.plain)
-                .disabled(isRefreshing || collectorIsRunning(collector) || collector.state != .active)
-                .help("立即运行采集器\n\(lastSuccessfulUpdateHelp(for: collector))")
-            } else {
-                Text(lastUpdatedText)
-                    .fixedSize()
+            } label: {
+                if isRefreshing || isManualRefreshing {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .frame(width: 12, height: 12)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                }
             }
+            .buttonStyle(.plain)
+            .disabled(
+                isRefreshing || isManualRefreshing ||
+                    collector.map { collectorIsRunning($0) || $0.state != .active } == true
+            )
+            .help(
+                collector.map { "立即运行采集器\n\(lastSuccessfulUpdateHelp(for: $0))" }
+                    ?? "重新读取本地最新进度"
+            )
+            moreButton
         }
         .font(.caption2)
         .foregroundStyle(.secondary)
     }
 
-    private func timingText(_ progress: WorkProgress) -> String {
-        let elapsed = max(0, Date().timeIntervalSince(phaseStartedAt))
-        let remainingText = estimatedRemaining.map(clockDuration) ?? "?"
-        let rateText: String
-        if let estimatedRemaining, estimatedRemaining > 0 {
-            let rate = max(0, progress.total - progress.completed) / estimatedRemaining
-            if rate >= 100 {
-                rateText = String(format: "%.0f", rate)
-            } else if rate >= 10 {
-                rateText = String(format: "%.1f", rate)
-            } else {
-                rateText = String(format: "%.2f", rate)
+    private var moreButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                confirmingForget.toggle()
             }
-        } else {
-            rateText = "--"
+        } label: {
+            Image(systemName: confirmingForget ? "xmark" : "ellipsis")
+                .font(.caption2.weight(.semibold))
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
         }
-        return "[\(clockDuration(elapsed))<\(remainingText), \(rateText)it/s]"
+        .buttonStyle(.plain)
+        .help(confirmingForget ? "收起操作" : "更多操作")
+    }
+
+    @ViewBuilder
+    private func timingSummary(_ progress: WorkProgress) -> some View {
+        let elapsedEnd = task.status.isTerminal ? task.updatedAt : Date()
+        let elapsed = max(0, elapsedEnd.timeIntervalSince(phaseStartedAt))
+        HStack(spacing: 5) {
+            Text(task.status.isTerminal ? "耗时 \(clockDuration(elapsed))" : "已用 \(clockDuration(elapsed))")
+                .monospacedDigit()
+            timingSeparator
+            if task.status == .completed {
+                Text("已完成").foregroundStyle(color)
+            } else if task.status.isTerminal {
+                Text("已停止").foregroundStyle(color)
+            } else if let estimatedRemaining {
+                Text("剩余约 \(clockDuration(estimatedRemaining))")
+                    .monospacedDigit()
+            } else {
+                Text("正在估算剩余时间和速度")
+            }
+            if let estimatedRate {
+                timingSeparator
+                Text(rateText(estimatedRate, progress: progress))
+                    .monospacedDigit()
+            }
+        }
+    }
+
+    private var timingSeparator: some View {
+        Text("·").foregroundStyle(.tertiary)
+    }
+
+    private func rateText(_ rate: Double, progress: WorkProgress) -> String {
+        let value: String
+        if rate >= 100 {
+            value = String(format: "%.0f", rate)
+        } else if rate >= 10 {
+            value = String(format: "%.1f", rate)
+        } else {
+            value = String(format: "%.2f", rate)
+        }
+        return "\(value) \(localizedUnit(progress.unit))/秒"
+    }
+
+    private func localizedUnit(_ unit: String?) -> String {
+        switch unit?.lowercased() {
+        case "step", "steps": "步"
+        case "file", "files": "文件"
+        case "shard", "shards": "分片"
+        case "batch", "batches": "批"
+        case "percent", "%": "%"
+        case let value?: value
+        case nil: "项"
+        }
     }
 
     private func clockDuration(_ interval: TimeInterval) -> String {
@@ -474,19 +541,6 @@ struct TaskRow: View {
         if days > 0 { return String(format: "%dd%02d:%02d:%02d", days, hours, minutes, remainder) }
         if hours > 0 { return String(format: "%d:%02d:%02d", hours, minutes, remainder) }
         return String(format: "%02d:%02d", minutes, remainder)
-    }
-
-    private var phaseDurationText: String {
-        let end = task.status.isTerminal ? task.updatedAt : Date()
-        let totalSeconds = max(0, Int(end.timeIntervalSince(phaseStartedAt)))
-        let days = totalSeconds / 86_400
-        let hours = totalSeconds % 86_400 / 3_600
-        let minutes = totalSeconds % 3_600 / 60
-        let seconds = totalSeconds % 60
-        if days > 0 { return "\(days)天\(hours)小时" }
-        if hours > 0 { return "\(hours)小时\(minutes)分" }
-        if minutes > 0 { return "\(minutes)分\(seconds)秒" }
-        return "\(seconds)秒"
     }
 
     private var lastUpdatedText: String {
