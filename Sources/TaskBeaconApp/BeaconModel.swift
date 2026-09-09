@@ -6,7 +6,9 @@ import TaskBeaconCore
 final class BeaconModel: ObservableObject {
     @Published var tasks: [TaskRecord] = []
     @Published var collectors: [CollectorRecord] = []
+    @Published var events: [TaskEvent] = []
     @Published var connectionError: String?
+    @Published var refreshingCollectorIDs: Set<String> = []
 
     private var refreshTask: Task<Void, Never>?
     private var loadedOnce = false
@@ -36,6 +38,7 @@ final class BeaconModel: ObservableObject {
             if loadedOnce { notifyTransitions(from: tasks, to: snapshot.tasks) }
             tasks = snapshot.tasks
             collectors = snapshot.collectors
+            events = snapshot.events
             connectionError = nil
             loadedOnce = true
         } catch {
@@ -74,6 +77,25 @@ final class BeaconModel: ObservableObject {
             }
             tasks.removeAll { $0.id == id }
             collectors.removeAll { $0.taskID == id }
+            events.removeAll { $0.taskID == id }
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    func runCollector(id: String) async -> String? {
+        refreshingCollectorIDs.insert(id)
+        defer { refreshingCollectorIDs.remove(id) }
+        do {
+            let response = try await Task.detached {
+                try TaskBeaconClient().send(WireRequest(action: "collector.run", collectorID: id))
+            }.value
+            guard response.ok else {
+                throw TaskBeaconError.invalid(response.message ?? "无法立即刷新采集器")
+            }
+            try? await Task.sleep(for: .seconds(1))
+            await refresh()
             return nil
         } catch {
             return error.localizedDescription

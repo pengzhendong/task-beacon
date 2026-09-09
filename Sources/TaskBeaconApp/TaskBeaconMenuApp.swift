@@ -17,7 +17,7 @@ struct TaskBeaconMenuApp: App {
     var body: some Scene {
         MenuBarExtra {
             BeaconMenu(model: model, updater: updater, expandedTaskID: $expandedTaskID)
-                .frame(width: 390, height: panelHeight)
+                .frame(width: 390)
                 .animation(.easeInOut(duration: 0.18), value: model.tasks.count)
                 .animation(.easeInOut(duration: 0.18), value: expandedTaskID)
         } label: {
@@ -32,10 +32,6 @@ struct TaskBeaconMenuApp: App {
         .menuBarExtraStyle(.window)
     }
 
-    private var panelHeight: CGFloat {
-        let contentHeight = max(205, 120 + CGFloat(model.tasks.count) * 90)
-        return min(540, contentHeight + (expandedTaskID == nil ? 0 : 40))
-    }
 }
 
 @MainActor

@@ -117,6 +117,7 @@ Codex CLI、桌面端和 IDE 扩展会共享这份 MCP 配置；添加后重启�
 - `task_cancel`
 - `task_list`
 - `collector_register`
+- `collector_run`
 
 所有更新支持 `event_id` 去重；提供 `sequence` 时，旧序号不会覆盖新状态。没有 sequence 的事件按 `observed_at` 保护，旧观测同样不会覆盖新状态。
 
@@ -153,10 +154,13 @@ taskbeacon collector add \
 
 ```bash
 taskbeacon collector list
+taskbeacon collector run training-log
 taskbeacon collector pause training-log
 taskbeacon collector resume training-log
 taskbeacon collector remove training-log
 ```
+
+菜单会显示当前阶段耗时、最近活动和下次采集时间。每张任务卡也可以立即运行对应采集器；较长的状态消息默认折叠，需要时再展开。
 
 同一个采集器始终只会运行一个实例。如果命令耗时超过轮询间隔，TaskBeacon 会等待本轮结束，再从结束时间起计算下一次间隔。暂停、删除或同 ID 替换采集器时，仍在运行的旧结果会失效，并尽可能终止对应的采集子进程。
 
@@ -180,7 +184,7 @@ taskbeacon collector remove training-log
 
 ```bash
 swift build
-swift run taskbeacon-selftest
+swift test
 make app
 ```
 
