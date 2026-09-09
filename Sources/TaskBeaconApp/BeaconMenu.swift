@@ -204,7 +204,6 @@ struct TaskRow: View {
     let task: TaskRecord
     let collector: CollectorRecord?
     let onForget: () -> Void
-    @State private var confirmingForget = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -236,7 +235,7 @@ struct TaskRow: View {
                 }
                 Menu {
                     Button("停止跟踪", role: .destructive) {
-                        confirmingForget = true
+                        confirmForget()
                     }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -289,11 +288,18 @@ struct TaskRow: View {
                 .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.035), radius: 2, y: 1)
-        .alert("停止跟踪“\(task.title)”？", isPresented: $confirmingForget) {
-            Button("停止跟踪", role: .destructive, action: onForget)
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("只会从 TaskBeacon 移除进度记录和关联采集器，不会终止实际任务。")
+    }
+
+    private func confirmForget() {
+        let alert = NSAlert()
+        alert.messageText = "停止跟踪“\(task.title)”？"
+        alert.informativeText = "只会从 TaskBeacon 移除进度记录和关联采集器，不会终止实际任务。"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "停止跟踪")
+        alert.addButton(withTitle: "取消")
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            onForget()
         }
     }
 
