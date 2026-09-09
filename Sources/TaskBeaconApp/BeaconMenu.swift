@@ -204,6 +204,7 @@ struct TaskRow: View {
     let task: TaskRecord
     let collector: CollectorRecord?
     let onForget: () -> Void
+    @State private var confirmingForget = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -233,17 +234,16 @@ struct TaskRow: View {
                     .buttonStyle(.plain)
                     .help("打开结果")
                 }
-                Menu {
-                    Button("停止跟踪", role: .destructive) {
-                        confirmForget()
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        confirmingForget.toggle()
                     }
                 } label: {
-                    Image(systemName: "ellipsis")
+                    Image(systemName: confirmingForget ? "xmark" : "ellipsis")
                         .font(.caption2.weight(.semibold))
                         .frame(width: 16, height: 16)
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
+                .buttonStyle(.plain)
                 .fixedSize()
                 .help("更多操作")
             }
@@ -279,6 +279,23 @@ struct TaskRow: View {
                     .foregroundStyle(BeaconPalette.amber)
                     .lineLimit(1)
             }
+            if confirmingForget {
+                Divider()
+                HStack(spacing: 8) {
+                    Label("不会终止实际任务", systemImage: "eye.slash")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("取消") {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            confirmingForget = false
+                        }
+                    }
+                    Button("停止跟踪", role: .destructive, action: onForget)
+                }
+                .controlSize(.small)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
         .padding(11)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.76),
@@ -288,19 +305,6 @@ struct TaskRow: View {
                 .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.035), radius: 2, y: 1)
-    }
-
-    private func confirmForget() {
-        let alert = NSAlert()
-        alert.messageText = "停止跟踪“\(task.title)”？"
-        alert.informativeText = "只会从 TaskBeacon 移除进度记录和关联采集器，不会终止实际任务。"
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "停止跟踪")
-        alert.addButton(withTitle: "取消")
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        if alert.runModal() == .alertFirstButtonReturn {
-            onForget()
-        }
     }
 
     private var statusText: String {
