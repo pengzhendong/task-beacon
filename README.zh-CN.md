@@ -37,15 +37,15 @@ TaskBeacon 是一个本地优先的 macOS AI 任务进度中心。AI 在开始�
 | **多任务隔离** | 使用 provider、host、session、task 和 parent task 标识不同来源及子任务。 |
 | **故障分离** | 采集超时或输出错误只标记采集器异常，不会把业务任务误报为失败。 |
 | **可靠恢复** | 事件去重、乱序保护、原子持久化，服务重启后恢复任务和采集器。 |
-| **应用内更新** | Sparkle 定期检查签名的 GitHub Release；可一键安装并重新启动，无需重新拖动应用。 |
+| **应用内更新** | Sparkle 定期检查签名的 GitHub Release，自动安装并重新启动，无需重新拖动应用。 |
 
 ## 安装
 
 ### 从 Release 安装
 
-从 [Releases](https://github.com/pengzhendong/task-beacon/releases) 下载最新的 `TaskBeacon-v*.zip`，解压后将 `TaskBeacon.app` 放入 Applications 并打开。目前预构建版本面向 Apple Silicon Mac（M 系列），Intel Mac 可自行从源码构建。首次安装完成后，后续版本可在应用内完成：菜单栏选择 **检查更新…**，或等待每天一次的后台检查；下载后选择安装并重新启动，由更新器完成替换和重启，无需重新拖动应用。
+从 [Releases](https://github.com/pengzhendong/task-beacon/releases) 下载最新的 `TaskBeacon-v*.zip`，解压后将 `TaskBeacon.app` 放入 Applications 并打开。目前预构建版本面向 Apple Silicon Mac（M 系列），Intel Mac 可自行从源码构建。首次安装完成后，后续版本可在应用内完成：菜单栏选择 **检查更新**，或等待每天一次的后台检查；Sparkle 会自动下载、校验、替换并重新启动。只有当前用户无权写入应用目录时，macOS 才可能要求授权。
 
-在面板底部选择 **安装 CLI**，即可把 `taskbeacon` 和 `taskbeacon-mcp` 暴露到 `~/.local/bin`。这是当前用户范围的安装，不需要管理员密码。如果 shell 的 `PATH` 尚未包含该目录，在 `~/.zprofile` 加入：
+TaskBeacon 会自动把 `taskbeacon` 和 `taskbeacon-mcp` 暴露到 `~/.local/bin`。这是当前用户范围的安装，不需要管理员密码。如果 shell 的 `PATH` 尚未包含该目录，在 `~/.zprofile` 加入：
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"

@@ -85,9 +85,10 @@ struct BeaconMenu: View {
     private var footer: some View {
         HStack(spacing: 12) {
             Button { updater.checkForUpdates() } label: {
-                Label("检查更新", systemImage: "arrow.triangle.2.circlepath")
+                Label(updater.statusText, systemImage: "arrow.triangle.2.circlepath")
             }
             .buttonStyle(.plain)
+            .disabled(updater.isChecking)
             Spacer()
             Button { installCommandLineTools() } label: {
                 Label(commandLineToolsInstalled ? "CLI 已安装" : "安装 CLI",

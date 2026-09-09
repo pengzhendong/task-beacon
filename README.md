@@ -37,7 +37,7 @@ TaskBeacon is a local-first progress center for AI work on macOS. An agent regis
 | **Task isolation** | Provider, host, session, task, and parent-task identifiers keep concurrent agents and child tasks separate. |
 | **Collector health is separate** | A timeout or malformed collector response marks the collector unhealthy without falsely failing the business task. |
 | **Crash-safe recovery** | Event deduplication, out-of-order protection, and atomic persistence restore tasks and collectors after a restart. |
-| **In-app updates** | Sparkle checks signed GitHub Releases and installs updates without asking you to replace the app manually. |
+| **In-app updates** | Sparkle checks signed GitHub Releases, installs them, and relaunches TaskBeacon automatically. |
 
 ## Install
 
@@ -45,9 +45,9 @@ TaskBeacon is a local-first progress center for AI work on macOS. An agent regis
 
 Download the latest `TaskBeacon-v*.zip` from [Releases](https://github.com/pengzhendong/task-beacon/releases), extract it, move `TaskBeacon.app` to Applications, and open it. Prebuilt releases currently target Apple Silicon Macs; Intel users can build from source.
 
-After the first install, choose **Check for Updates…** from the menu-bar panel or let the daily background check run. Sparkle downloads, verifies, replaces, and relaunches the app in place.
+After the first install, choose **Check for Updates** from the menu-bar panel or let the daily background check run. Sparkle downloads, verifies, replaces, and relaunches the app automatically. macOS may still request authorization when the application directory is not writable by the current user.
 
-Choose **Install CLI** in the panel footer to expose `taskbeacon` and `taskbeacon-mcp` in `~/.local/bin`. This is a per-user installation and does not require an administrator password. If that directory is not already on your shell path, add this to `~/.zprofile`:
+TaskBeacon automatically exposes `taskbeacon` and `taskbeacon-mcp` in `~/.local/bin`. This is a per-user installation and does not require an administrator password. If that directory is not already on your shell path, add this to `~/.zprofile`:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
