@@ -430,7 +430,9 @@ struct TaskRow: View {
             Spacer(minLength: 4)
             Text(collector.map { refreshStatusText(for: $0) } ?? lastUpdatedText)
                 .monospacedDigit()
-                .fixedSize()
+                // Keep the refresh control anchored while the label changes
+                // between "刷新中" and the next-refresh countdown.
+                .frame(width: 72, alignment: .trailing)
                 .foregroundStyle(collector.map { refreshStatusColor(for: $0) } ?? Color.secondary)
                 .help(collector.map { lastSuccessfulUpdateHelp(for: $0) } ?? "上次收到进度：\(task.updatedAt.formatted())")
             Button {
@@ -618,25 +620,25 @@ private struct SpinningRefreshIcon: View {
     let isAnimating: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var rotation = 0.0
 
     var body: some View {
+        if isAnimating && !reduceMotion {
+            TimelineView(.periodic(from: .now, by: 0.1)) { context in
+                icon(rotation: rotation(at: context.date))
+            }
+        } else {
+            icon(rotation: 0)
+        }
+    }
+
+    private func icon(rotation: Double) -> some View {
         Image(systemName: "arrow.clockwise")
             .rotationEffect(.degrees(rotation))
             .frame(width: 12, height: 12)
-            .onAppear { updateAnimation() }
-            .onChange(of: isAnimating) { _ in updateAnimation() }
-            .onChange(of: reduceMotion) { _ in updateAnimation() }
     }
 
-    private func updateAnimation() {
-        guard isAnimating, !reduceMotion else {
-            rotation = 0
-            return
-        }
-        rotation = 0
-        withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-            rotation = 360
-        }
+    private func rotation(at date: Date) -> Double {
+        let cycle = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.5)
+        return cycle / 1.5 * 360
     }
 }
