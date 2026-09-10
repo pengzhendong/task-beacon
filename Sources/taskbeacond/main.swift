@@ -253,7 +253,10 @@ struct TaskBeaconDaemon {
             let output = try JSONCoding.decoder().decode(CollectorOutput.self, from: data)
             let patch = TaskPatch(status: output.resolvedStatus, stage: output.stage, message: output.message,
                                   progress: output.progress, result: output.result, target: output.target)
-            _ = try await store.completeCollectorRun(id: collector.id, runID: runID, patch: patch)
+            _ = try await store.completeCollectorRun(
+                id: collector.id, runID: runID, patch: patch,
+                pauseOnTerminal: output.continuePolling != true
+            )
         } catch {
             _ = try? await store.failCollectorRun(id: collector.id, runID: runID,
                                                   error: error.localizedDescription)

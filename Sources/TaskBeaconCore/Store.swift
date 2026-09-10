@@ -278,6 +278,7 @@ public actor TaskStore {
 
     @discardableResult
     public func completeCollectorRun(id: String, runID: UUID, patch: TaskPatch,
+                                     pauseOnTerminal: Bool = true,
                                      at date: Date = Date()) throws -> Bool {
         try requireWritable()
         guard activeCollectorRuns[id] == runID, var collector = collectors[id],
@@ -289,7 +290,7 @@ public actor TaskStore {
         collector.lastSuccessAt = date
         collector.lastError = nil
         collector.nextRunAt = date.addingTimeInterval(collector.intervalSeconds)
-        if patch.status?.isTerminal == true { collector.state = .paused }
+        if pauseOnTerminal, patch.status?.isTerminal == true { collector.state = .paused }
         collectors[id] = collector
         try persist()
         return true
