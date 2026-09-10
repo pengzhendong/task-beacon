@@ -440,13 +440,7 @@ struct TaskRow: View {
                     isManualRefreshing = false
                 }
             } label: {
-                if isRefreshing || isManualRefreshing {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .frame(width: 12, height: 12)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                }
+                SpinningRefreshIcon(isAnimating: refreshButtonIsAnimating)
             }
             .buttonStyle(.plain)
             .disabled(
@@ -579,6 +573,10 @@ struct TaskRow: View {
         collectorIsStale(collector) ? BeaconPalette.amber : .secondary
     }
 
+    private var refreshButtonIsAnimating: Bool {
+        isRefreshing || isManualRefreshing || collector.map(collectorIsRunning) == true
+    }
+
     private func collectorIsStale(_ collector: CollectorRecord) -> Bool {
         guard collector.state == .active,
               !isRefreshing,
@@ -604,13 +602,38 @@ struct TaskRow: View {
     }
 
     private func collectorIsRunning(_ collector: CollectorRecord) -> Bool {
-        guard collector.lastError == nil, let lastRunAt = collector.lastRunAt else { return false }
-        guard let lastSuccessAt = collector.lastSuccessAt else { return true }
-        return lastRunAt > lastSuccessAt
+        collector.isRunning == true
     }
 
     private func targetURL(_ target: String) -> URL? {
         if target.hasPrefix("/") { return URL(fileURLWithPath: target) }
         return URL(string: target)
+    }
+}
+
+private struct SpinningRefreshIcon: View {
+    let isAnimating: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var rotation = 0.0
+
+    var body: some View {
+        Image(systemName: "arrow.clockwise")
+            .rotationEffect(.degrees(rotation))
+            .frame(width: 12, height: 12)
+            .onAppear { updateAnimation() }
+            .onChange(of: isAnimating) { _ in updateAnimation() }
+            .onChange(of: reduceMotion) { _ in updateAnimation() }
+    }
+
+    private func updateAnimation() {
+        guard isAnimating, !reduceMotion else {
+            rotation = 0
+            return
+        }
+        rotation = 0
+        withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
+            rotation = 360
+        }
     }
 }

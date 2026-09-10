@@ -205,6 +205,11 @@ final class TaskBeaconCoreTests: XCTestCase {
         let startedAt = Date()
         let firstRun = try await store.markCollectorStarted(id: "single-flight", at: startedAt)
         try require(firstRun != nil, "first collector run did not start")
+        let runningCollector = await store.listCollectors().first
+        try require(
+            runningCollector?.isRunning == true,
+            "active collector run was not exposed in snapshots"
+        )
         let dueWhileRunning = await store.dueCollectors(at: startedAt.addingTimeInterval(60))
         try require(dueWhileRunning.isEmpty, "collector became due while its previous run was active")
         let overlappingRun = try await store.markCollectorStarted(
@@ -215,6 +220,11 @@ final class TaskBeaconCoreTests: XCTestCase {
         let finishedAt = startedAt.addingTimeInterval(10)
         _ = try await store.completeCollectorRun(
             id: "single-flight", runID: firstRun!, patch: TaskPatch(stage: "done"), at: finishedAt
+        )
+        let completedCollector = await store.listCollectors().first
+        try require(
+            completedCollector?.isRunning == false,
+            "completed collector remained marked as running"
         )
         let tooEarly = await store.dueCollectors(at: finishedAt.addingTimeInterval(4))
         let nextDue = await store.dueCollectors(at: finishedAt.addingTimeInterval(5))

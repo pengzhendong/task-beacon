@@ -162,11 +162,15 @@ public struct CollectorRecord: Codable, Identifiable, Equatable, Sendable {
     public var nextRunAt: Date
     public var lastSuccessAt: Date?
     public var lastError: String?
+    /// Runtime-only state reported by the daemon. Optional for compatibility
+    /// with snapshots written before this field existed.
+    public var isRunning: Bool?
 
     public init(id: String, taskID: String, command: String, workingDirectory: String? = nil,
                 intervalSeconds: Double = 30, timeoutSeconds: Double = 10,
                 state: CollectorState = .active, lastRunAt: Date? = nil,
-                nextRunAt: Date = Date(), lastSuccessAt: Date? = nil, lastError: String? = nil) {
+                nextRunAt: Date = Date(), lastSuccessAt: Date? = nil, lastError: String? = nil,
+                isRunning: Bool? = nil) {
         self.id = id
         self.taskID = taskID
         self.command = command
@@ -178,6 +182,7 @@ public struct CollectorRecord: Codable, Identifiable, Equatable, Sendable {
         self.nextRunAt = nextRunAt
         self.lastSuccessAt = lastSuccessAt
         self.lastError = lastError
+        self.isRunning = isRunning
     }
 }
 
