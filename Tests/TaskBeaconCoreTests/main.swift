@@ -150,6 +150,31 @@ final class TaskBeaconCoreTests: XCTestCase {
         try require(restoredCollector?.lastError == "timeout", "collector health was not restored")
     }
 
+    func testQuotesCollectorCommandsThatAreLiteralPaths() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("taskbeacon collector's scripts \(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let script = directory.appendingPathComponent("read progress.zsh")
+        try Data("#!/bin/zsh\n".utf8).write(to: script)
+
+        let expected = CollectorCommand.shellQuoted(script.path)
+        try require(
+            CollectorCommand.normalized(script.path) == expected,
+            "literal collector path was not shell-quoted"
+        )
+        try require(
+            CollectorCommand.normalized("./read progress.zsh", workingDirectory: directory.path)
+                == CollectorCommand.shellQuoted("./read progress.zsh"),
+            "relative collector path was not resolved against --cwd"
+        )
+        try require(
+            CollectorCommand.normalized("printf '{\"status\":\"running\"}'")
+                == "printf '{\"status\":\"running\"}'",
+            "a shell command was incorrectly treated as a literal path"
+        )
+    }
+
     func testRejectsInvalidProgress() async throws {
         let (store, directory) = makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
