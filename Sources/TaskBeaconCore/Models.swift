@@ -194,6 +194,9 @@ public struct CollectorOutput: Codable, Sendable {
     public var result: String?
     public var target: String?
     public var done: Bool?
+    /// Keep scheduling this collector after it reports a terminal task status.
+    /// Useful for long-lived monitors that can discover new work later.
+    public var continuePolling: Bool?
 
     public var resolvedStatus: TaskStatus? {
         status ?? (done == true ? .completed : nil)

@@ -140,7 +140,7 @@ A collector command writes one JSON object to standard output on every run. Incl
 }
 ```
 
-Return `"done": true` when the task has finished. The response may also include `result` and `target`. Register a collector with:
+Return `"done": true` when the task has finished. The response may also include `result` and `target`. A terminal status normally pauses the collector. For a long-lived monitor that should keep looking for new work after showing the current task as completed, return `"continuePolling": true` with the terminal status. Register a collector with:
 
 ```bash
 taskbeacon collector add \

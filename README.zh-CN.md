@@ -138,7 +138,7 @@ Codex CLI、桌面端和 IDE 扩展会共享这份 MCP 配置；添加后重启�
 }
 ```
 
-达到完成条件时返回 `"done": true`，还可以附带 `result` 和 `target`。注册示例：
+达到完成条件时返回 `"done": true`，还可以附带 `result` 和 `target`。终态默认会暂停采集器；如果是长期监控，希望当前任务显示完成后仍继续发现新任务，请在终态结果中同时返回 `"continuePolling": true`。注册示例：
 
 ```bash
 taskbeacon collector add \

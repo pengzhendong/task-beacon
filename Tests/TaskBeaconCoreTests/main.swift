@@ -102,6 +102,30 @@ final class TaskBeaconCoreTests: XCTestCase {
         try require(output.resolvedStatus == .failed, "done overrode the collector's explicit failure")
     }
 
+    func testContinuousCollectorKeepsPollingAfterTaskCompletes() async throws {
+        let (store, directory) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let task = TaskRecord(id: "continuous-task", provider: "test", hostID: "host", title: "Monitor")
+        _ = try await store.register(task)
+        _ = try await store.registerCollector(
+            CollectorRecord(
+                id: "continuous-collector", taskID: task.id,
+                command: "echo '{}'", intervalSeconds: 5
+            )
+        )
+        let startedRunID = try await store.markCollectorStarted(id: "continuous-collector")
+        let runID = try XCTUnwrap(startedRunID)
+
+        _ = try await store.completeCollectorRun(
+            id: "continuous-collector", runID: runID,
+            patch: TaskPatch(status: .completed), pauseOnTerminal: false
+        )
+
+        let snapshot = await store.snapshot()
+        try require(snapshot.tasks.first?.status == .completed, "task was not completed")
+        try require(snapshot.collectors.first?.state == .active, "continuous collector was paused")
+    }
+
     func testDeduplicatesEventsAndRejectsOldSequence() async throws {
         let (store, directory) = makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
