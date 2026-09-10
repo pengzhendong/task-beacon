@@ -574,7 +574,10 @@ struct TaskRow: View {
     }
 
     private var refreshButtonIsAnimating: Bool {
-        isRefreshing || isManualRefreshing || collector.map(collectorIsRunning) == true
+        // Scheduled collectors may run for most of their polling interval.
+        // Keep their state in the status text, and reserve motion for an
+        // explicit refresh requested by the user.
+        isRefreshing || isManualRefreshing
     }
 
     private func collectorIsStale(_ collector: CollectorRecord) -> Bool {
@@ -632,7 +635,7 @@ private struct SpinningRefreshIcon: View {
             return
         }
         rotation = 0
-        withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
+        withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
             rotation = 360
         }
     }
